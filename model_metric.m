@@ -9,8 +9,8 @@ classdef model_metric < handle
         foreign_table_name;
         
         conn;
-        colnames = {'FILE_ID','Model_Name','is_Lib','SCHK_Block_count','SLDiag_Block_count','SubSystem_count_Top','Agg_SubSystem_count','Hierarchy_depth','LibraryLinked_Count','CComplexity'};
-        coltypes = {'INTEGER','VARCHAR','Boolean','NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC'};
+        colnames = {'FILE_ID','Model_Name','is_Lib','SCHK_Block_count','SLDiag_Block_count','SubSystem_count_Top','Agg_SubSystem_count','Hierarchy_depth','LibraryLinked_Count','compiles','CComplexity'};
+        coltypes = {'INTEGER','VARCHAR','Boolean','NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC','Boolean','NUMERIC'};
 
 
     end
@@ -75,15 +75,15 @@ classdef model_metric < handle
                  ,'(id))');
              obj.WriteLog(create_metric_table);
           
-            %obj.drop_table();
+            obj.drop_table();
             exec(obj.conn,create_metric_table);
         end
         %Writes to database 
         function output_bol = write_to_database(obj,id,simulink_model_name,isLib,schK_blk_count,block_count,...
-                                            subsys_count,agg_subsys_count,depth,linkedcount, cyclo)%block_count)
+                                            subsys_count,agg_subsys_count,depth,linkedcount,compiles, cyclo)%block_count)
             insert(obj.conn,obj.table_name,obj.colnames, ...
                 {id,simulink_model_name,isLib,schK_blk_count,block_count,subsys_count,...
-                agg_subsys_count,depth,linkedcount,cyclo});%block_count});
+                agg_subsys_count,depth,linkedcount,compiles,cyclo});%block_count});
             output_bol= 1;
         end
         %gets File Ids and model name from table
@@ -112,7 +112,7 @@ classdef model_metric < handle
         %drop table Striclty for debugging purposes
         function drop_table(obj)
             %Strictly for debugginf purpose only
-            sqlquery = ['DROP TABLE ' obj.table_name];
+            sqlquery = ['DROP TABLE IF EXISTS ' obj.table_name];
             exec(obj.conn,sqlquery);
             %max(data)
         end
@@ -152,15 +152,14 @@ classdef model_metric < handle
         %Checks if a models compiles for not
         function compiles = does_model_compile(obj,model)
                 %eval(['mex /home/sls6964xx/Desktop/UtilityProgramNConfigurationFile/ModelMetricCollection/tmp/SDF-MATLAB-master/C/src/sfun_ndtable.cpp']);
-                eval(['sim',model]);
+               eval([model, '([], [], [], ''compile'');'])
                 obj.WriteLog([model ' compiled Successfully ' ]); 
-                %stop_model = eval([model, '([], [], [], ''term'');']); %terminate simulation
-                %set_param(gcs, 'SimulationCommand', 'stop');%terminate simulation
-                %wait(stop_model);
-                %compiles = true;
+               
+                compiles = 1;
         end
         
         %Close the model
+        % Close the model https://www.mathworks.com/matlabcentral/answers/173164-why-the-models-stays-in-paused-after-initialisation-state
         function obj= close_the_model(obj,model)
             try
                
@@ -170,6 +169,10 @@ classdef model_metric < handle
                bdclose(model);
             catch exception
                 obj.WriteLog(exception.message);
+                obj.WriteLog("Trying Again");
+                eval([model '([],[],[],''sizes'')']);
+                eval([model '([],[],[],''term'')']);
+                obj.close_the_model(model);
             end
         end
         %Main function to call to extract model metrics
@@ -265,38 +268,39 @@ classdef model_metric < handle
                                    obj.WriteLog(sprintf('%s is a library. Skipping calculating cyclomatic metric/compile check',model_name));
                                    obj.close_the_model(model_name);
                                    obj.write_to_database(id,char(m(end)),1,schk_blk_count,blk_cnt,...
-                                       subsys_count,agg_subsys_count,depth,liblink_count,-1);%blk_cnt);
+                                       subsys_count,agg_subsys_count,depth,liblink_count,-1,-1);%blk_cnt);
                            
                                    continue
                                end
                                
                                cyclo_complexity = -1; % If model compile fails. cant check cyclomatic complexity. Hence -1 
-                               %{
-                               try
-                                   
-                               
-                                   obj.WriteLog(sprintf('Checking if %s compiles?', model_name));
-                                   obj.does_model_compile(model_name);
+                               compiles = 0; 
+                               try                               
+                                  obj.WriteLog(sprintf('Checking if %s compiles?', model_name));
+                                   compiles = obj.does_model_compile(model_name);
+                                    obj.close_the_model(model_name);
                                catch ME
                                     obj.WriteLog(sprintf('ERROR Compiling %s',model_name));                    
                                     obj.WriteLog(['ERROR ID : ' ME.identifier]);
                                     obj.WriteLog(['ERROR MSG : ' ME.message]);
                         
                                end
-                               
-                               try
-                                   obj.WriteLog(['Calculating cyclomatic complexity of :' model_name]);
-                                   cyclo_complexity = obj.extract_cyclomatic_complexity(model_name);
-                                   obj.WriteLog(sprintf("Cyclomatic Complexity : %d ",cyclo_complexity));
-                               catch ME
-                                    obj.WriteLog(sprintf('ERROR Calculating Cyclomatic Complexity %s',model_name));                    
-                                    obj.WriteLog(['ERROR ID : ' ME.identifier]);
-                                    obj.WriteLog(['ERROR MSG : ' ME.message]);
-                               
-                               end
                                %}
+                               %if (compiles)
+                                   try
+                                       obj.WriteLog(['Calculating cyclomatic complexity of :' model_name]);
+                                       cyclo_complexity = obj.extract_cyclomatic_complexity(model_name);
+                                       obj.WriteLog(sprintf("Cyclomatic Complexity : %d ",cyclo_complexity));
+                                   catch ME
+                                        obj.WriteLog(sprintf('ERROR Calculating Cyclomatic Complexity %s',model_name));                    
+                                        obj.WriteLog(['ERROR ID : ' ME.identifier]);
+                                        obj.WriteLog(['ERROR MSG : ' ME.message]);
+
+                                   end
+                               %end
                                obj.WriteLog(sprintf("Writing to Database"));
-                               success = obj.write_to_database(id,char(m(end)),0,schk_blk_count,blk_cnt,subsys_count,agg_subsys_count,depth,liblink_count,cyclo_complexity);%blk_cnt);
+                               success = obj.write_to_database(id,char(m(end)),0,schk_blk_count,blk_cnt,subsys_count,...
+                                   agg_subsys_count,depth,liblink_count,compiles,cyclo_complexity);%blk_cnt);
                                if success ==1
                                    obj.WriteLog(sprintf("Successful Insert to Database"));
                                end
@@ -306,9 +310,14 @@ classdef model_metric < handle
                  % close all hidden;
                  
                 rmpath(genpath(folder_path));
-                obj.delete_tmp_folder_content(obj.cfg.tmp_unzipped_dir);
-
-                disp(' ')
+                try
+                    obj.delete_tmp_folder_content(obj.cfg.tmp_unzipped_dir);
+                catch ME
+                    obj.WriteLog(sprintf('ERROR deleting'));                    
+                                obj.WriteLog(['ERROR ID : ' ME.identifier]);
+                                obj.WriteLog(['ERROR MSG : ' ME.message]);
+                end
+                                disp(' ')
                 processed_file_count=processed_file_count+1;
 
            end
