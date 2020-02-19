@@ -7,11 +7,11 @@ classdef model_metric_cfg < handle
      %directory where the Simulink projects(in zip format) are stored 
        %source_dir = [ filesep 'home' filesep 'sls6964xx' filesep 'Desktop' filesep 'UtilityProgramNConfigurationFile' filesep  'TestCollectingSimulinkModels' filesep  'dir_to_download'] 
        %source_dir = [filesep 'home' filesep 'sls6964xx' filesep 'Downloads' filesep 'SLNet_v1' filesep  'SLNET_GitHub']
-       source_dir = [filesep 'home' filesep 'sls6964xx' filesep 'Desktop' filesep 'TEST']
+       source_dir = ['C:' filesep 'Users' filesep 'sls6964xx' filesep 'Desktop' filesep 'SLNet_v1' filesep 'Test']
        %directory where the sqlite database which contains metadata tables
        %are
         %dbfile = [filesep 'home' filesep 'sls6964xx' filesep 'Desktop' filesep 'UtilityProgramNConfigurationFile' filesep 'TestCollectingSimulinkModels'  filesep 'xyz.sqlite']
-        dbfile = [filesep 'home' filesep 'sls6964xx' filesep 'Downloads' filesep 'SLNet_v1' filesep  'slnet_v1.sqlite']
+        dbfile = ['C:' filesep 'Users' filesep 'sls6964xx' filesep 'Desktop' filesep 'SLNet_v1' filesep  'slnet_v1.sqlite']
          
         %New/Existing table Where Simulink model metrics(Block_Count) will be stored
         table_name= 'GitHub_Metric';

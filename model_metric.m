@@ -75,7 +75,7 @@ classdef model_metric < handle
                  ,'(id))');
              obj.WriteLog(create_metric_table);
           
-           obj.drop_table();
+            %obj.drop_table();
             exec(obj.conn,create_metric_table);
         end
         %Writes to database 
@@ -86,13 +86,28 @@ classdef model_metric < handle
                 agg_subsys_count,depth,linkedcount,cyclo});%block_count});
             output_bol= 1;
         end
-        %gets File Ids from table
-        function results = fetch_file_ids(obj)
-            sqlquery = ['SELECT distinct file_id FROM ' obj.table_name];
+        %gets File Ids and model name from table
+        function results = fetch_file_ids_model_name(obj)
+            sqlquery = ['SELECT file_id,model_name FROM ' obj.table_name];
             results = fetch(obj.conn,sqlquery);
             
             %max(data)
         end
+        
+        %Construct matrix that concatenates 'file_id'+'model_name' to
+        %avoid recalculating the metrics
+        function unique_id_mdl = get_database_content(obj)
+            
+            file_id_n_model = obj.fetch_file_ids_model_name();
+            unique_id_mdl = string.empty(0,length(file_id_n_model));
+            for i = 1 : length(file_id_n_model)
+                %https://www.mathworks.com/matlabcentral/answers/350385-getting-integer-out-of-cell   
+                unique_id_mdl(i) = strcat(num2str(file_id_n_model{i,1}),file_id_n_model(i,2));
+            
+            end
+         
+        end
+        
         
         %drop table Striclty for debugging purposes
         function drop_table(obj)
@@ -163,8 +178,9 @@ classdef model_metric < handle
             tf = ismember( {list_of_zip_files.name}, {'.', '..'});
             list_of_zip_files(tf) = [];  %remove current and parent directory.
             
-            %Fetch All File id from Database to remove redundancy
-            file_id_list = cell2mat(obj.fetch_file_ids());
+            %Fetch All File id and model_name from Database to remove redundancy
+                    
+            file_id_mdl_array = obj.get_database_content(); 
             
            processed_file_count = 1;
            %Loop over each Zip File 
@@ -179,15 +195,10 @@ classdef model_metric < handle
                     id = str2num(tmp_var);
          
                
-                    %if(id == 67689 || id == 49592 ||id==45571425 || (id == 152409754 || id ==25870564) )% potential crashes or hangs
-                    %   continue
-                   %end
-                    %Skip if Id already in database 
-                    if(~isempty(find(file_id_list==id, 1)))
-                       obj.WriteLog(['File Id' list_of_zip_files(cnt).name 'already processed. Skipping']);
-                       processed_file_count=processed_file_count+1;
+                    if(id == 67689 || id == 49592 ||id==45571425 || (id == 152409754 || id ==25870564) )% potential crashes or hangs
                        continue
-                    end
+                  end
+                    
                     if (id==51243)
                         obj.WriteLog('Skipping 51243 File')
                         
@@ -208,13 +219,18 @@ classdef model_metric < handle
                       path = char(list_of_unzipped_files(cnt));
                       
                        if endsWith(path,"slx") | endsWith(path,"mdl")
-                           m= split(path,"/");
+                           m= split(path,filesep);
+                           
                            %m(end); log
                            %disp(list_of_unzipped_files(cnt));
                            obj.WriteLog(sprintf('\nFound : %s',char(m(end))));
                            model_name = strrep(char(m(end)),'.slx','');
                            model_name = strrep(model_name,'.mdl','');
-                          
+                          %Skip if Id and model name already in database 
+                            if(~isempty(find(file_id_mdl_array==strcat(num2str(id),char(m(end))), 1)))
+                               obj.WriteLog(sprintf('File Id %d %s already processed. Skipping', id, char(m(end)) ));
+                                continue
+                            end
                             
                            try
                                load_system(model_name);
