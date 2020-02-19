@@ -5,10 +5,12 @@ classdef model_metric < handle
     % NOTE : Object variables always have to be appended with obj
     properties
         cfg;
-        table_name= 'MetricTable_GitHub';
-        foreign_table_name = 'GitHub_Simulink_Models';
+        table_name;
+        foreign_table_name;
+        
         conn;
-        colnames = {'FILE_ID','Simulink_Model','SubSystem_count','Hierarchy_depth'};
+        colnames = {'FILE_ID','Model_Name','is_Lib','SCHK_Block_count','SLDiag_Block_count','SubSystem_count_Top','Agg_SubSystem_count','Hierarchy_depth','LibraryLinked_Count','CComplexity'};
+        coltypes = {'INTEGER','VARCHAR','Boolean','NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC'};
 
 
     end
@@ -16,8 +18,12 @@ classdef model_metric < handle
     methods
         %Constructor
         function obj = model_metric()
-            diary("metrics.log");
+            warning on verbose
+            obj.WriteLog("open");
             obj.cfg = model_metric_cfg();
+            obj.table_name = obj.cfg.table_name;
+            obj.foreign_table_name = obj.cfg.foreign_table_name;
+            
             %Creates folder to extract zipped filed files in current
             %directory.
             if obj.cfg.tmp_unzipped_dir==""
@@ -28,29 +34,59 @@ classdef model_metric < handle
             end
             obj.connect_table();
         end
+        
+      
+            %Logging purpose
+        %Credits: https://www.mathworks.com/matlabcentral/answers/1905-logging-in-a-matlab-script
+        function WriteLog(obj,Data)
+            persistent FID
+            % Open the file
+            if strcmp(Data, 'open')
+              FID = fopen('LogFile.txt', 'w');
+              if FID < 0
+                 error('Cannot open file');
+              end
+              return;
+            elseif strcmp(Data, 'close')
+              fclose(FID);
+              FID = -1;
+            end
+            fprintf(FID, '%s: %s\n',datestr(now, 'dd/mm/yy-HH:MM:SS'), Data);
+            % Write to the screen at the same time:
+            fprintf('%s: %s\n', datestr(now, 'dd/mm/yy-HH:MM:SS'), Data);
+        end
+        
+        %concatenates file with source directory
         function full_path = get_full_path(obj,file)
             full_path = [obj.cfg.source_dir filesep file];
         end
         
+        %creates Table to store model metrics 
         function connect_table(obj)
-      
             obj.conn = sqlite(obj.cfg.dbfile,'connect');
-            create_metric_table = ['create table IF NOT EXISTS ' obj.table_name ...
-                ' (ID INTEGER primary key autoincrement, FILE_ID INTEGER'  ...
-                ', Simulink_Model VARCHAR, ' ...
-                 'SubSystem_count NUMERIC, Hierarchy_depth NUMERIC,'...
-                 'FOREIGN KEY(FILE_ID) REFERENCES ' obj.foreign_table_name...
-                 '(id))'];
-
+            cols = strcat(obj.colnames(1) ," ",obj.coltypes(1)) ;
+            for i=2:length(obj.colnames)
+                cols = strcat(cols, ... 
+                    ',', ... 
+                    obj.colnames(i), " ",obj.coltypes(i) ) ;
+            end
+           create_metric_table = strcat("create table IF NOT EXISTS ", obj.table_name ...
+            ,'( ID INTEGER primary key autoincrement ,', cols  ,", CONSTRAINT FK FOREIGN KEY(FILE_ID) REFERENCES ", obj.foreign_table_name...
+                 ,'(id))');
+             obj.WriteLog(create_metric_table);
+          
+           obj.drop_table();
             exec(obj.conn,create_metric_table);
         end
-        
-        function output_bol = write_to_database(obj,id,simulink_model_name,subsys_count,depth)%block_count)
+        %Writes to database 
+        function output_bol = write_to_database(obj,id,simulink_model_name,isLib,schK_blk_count,block_count,...
+                                            subsys_count,agg_subsys_count,depth,linkedcount, cyclo)%block_count)
             insert(obj.conn,obj.table_name,obj.colnames, ...
-                {id,simulink_model_name,subsys_count,depth});%block_count});
+                {id,simulink_model_name,isLib,schK_blk_count,block_count,subsys_count,...
+                agg_subsys_count,depth,linkedcount,cyclo});%block_count});
             output_bol= 1;
         end
-        
+        %gets File Ids from table
         function results = fetch_file_ids(obj)
             sqlquery = ['SELECT distinct file_id FROM ' obj.table_name];
             results = fetch(obj.conn,sqlquery);
@@ -58,9 +94,18 @@ classdef model_metric < handle
             %max(data)
         end
         
+        %drop table Striclty for debugging purposes
+        function drop_table(obj)
+            %Strictly for debugginf purpose only
+            sqlquery = ['DROP TABLE ' obj.table_name];
+            exec(obj.conn,sqlquery);
+            %max(data)
+        end
+        
+        %Deletes content of obj.cfg.tmp_unzipped_dir such that next
+        %project can be analyzed
         function delete_tmp_folder_content(obj,folder)
              % Get a list of all files in the folder
-            
             list = dir(folder);
             % Get a logical vector that tells which is a directory.
             dirFlags = [list.isdir];
@@ -72,7 +117,7 @@ classdef model_metric < handle
              for k = 1 : length(subFolders)
               base_folder_name = subFolders(k).name;
               full_folder_name = fullfile(folder, base_folder_name);
-              fprintf(1, 'Now deleting %s\n', full_folder_name);
+              obj.WriteLog(sprintf( 'Now deleting %s\n', full_folder_name));
               rmdir(full_folder_name,'s');
              end
             
@@ -83,13 +128,36 @@ classdef model_metric < handle
             for k = 1 : length(files)
               base_file_name = files(k).name;
               full_file_name = fullfile(folder, base_file_name);
-              fprintf(1, 'Now deleting %s\n', full_file_name);
+              obj.WriteLog(sprintf( 'Now deleting %s\n', full_file_name));
               delete(full_file_name);
             end
             
         end
-
-            
+        
+        %Checks if a models compiles for not
+        function compiles = does_model_compile(obj,model)
+                %eval(['mex /home/sls6964xx/Desktop/UtilityProgramNConfigurationFile/ModelMetricCollection/tmp/SDF-MATLAB-master/C/src/sfun_ndtable.cpp']);
+                eval(['sim',model]);
+                obj.WriteLog([model ' compiled Successfully ' ]); 
+                %stop_model = eval([model, '([], [], [], ''term'');']); %terminate simulation
+                %set_param(gcs, 'SimulationCommand', 'stop');%terminate simulation
+                %wait(stop_model);
+                %compiles = true;
+        end
+        
+        %Close the model
+        function obj= close_the_model(obj,model)
+            try
+               
+               obj.WriteLog(sprintf("Closing %s",model));
+         
+               close_system(model);
+               bdclose(model);
+            catch exception
+                obj.WriteLog(exception.message);
+            end
+        end
+        %Main function to call to extract model metrics
         function obj = process_all_models_file(obj)
             [list_of_zip_files] = dir(obj.cfg.source_dir); %gives struct with date, name, size info, https://www.mathworks.com/matlabcentral/answers/282562-what-is-the-difference-between-dir-and-ls
             tf = ismember( {list_of_zip_files.name}, {'.', '..'});
@@ -101,40 +169,41 @@ classdef model_metric < handle
            processed_file_count = 1;
            %Loop over each Zip File 
            for cnt = 1 : size(list_of_zip_files)
-                    fprintf('Processing #%d :File Id %s\n', processed_file_count,list_of_zip_files(cnt).name);
-                    name =strtrim(char(list_of_zip_files(cnt).name));  
+              
+                     name =strtrim(char(list_of_zip_files(cnt).name));  
                     obj.get_full_path(name);
-          
+                    log = strcat("Processing #",  num2str(processed_file_count), " :File Id ",list_of_zip_files(cnt).name) ;
+                    obj.WriteLog(log);
                    
                     tmp_var = strrep(name,'.zip',''); 
                     id = str2num(tmp_var);
          
                
-                   if(id == 49592 ||id==45571425 || (id == 152409754 || id ==25870564) )% potential crashes or hangs
-                       continue
-                   end
+                    %if(id == 67689 || id == 49592 ||id==45571425 || (id == 152409754 || id ==25870564) )% potential crashes or hangs
+                    %   continue
+                   %end
                     %Skip if Id already in database 
                     if(~isempty(find(file_id_list==id, 1)))
-                       fprintf('File Id %s already processed. Skipping\n',list_of_zip_files(cnt).name);
+                       obj.WriteLog(['File Id' list_of_zip_files(cnt).name 'already processed. Skipping']);
                        processed_file_count=processed_file_count+1;
                        continue
                     end
                     if (id==51243)
-                        disp('here')
+                        obj.WriteLog('Skipping 51243 File')
                         
                     end
                    %unzip the file TODO: Try CATCH
-                   fprintf('Extracting Files\n');
+                   obj.WriteLog('Extracting Files');
                    list_of_unzipped_files = unzip( obj.get_full_path(list_of_zip_files(cnt).name), obj.cfg.tmp_unzipped_dir);
                   %Assumption Zip file always consists of a single folder .
                   %Adapt later.
                   folder_path= obj.cfg.tmp_unzipped_dir;%char(list_of_unzipped_files(1));
                   %disp(folder_path);
                   % add to the MATLAB search path
-                  addpath(genpath(folder_path));
+                  addpath(genpath(folder_path));%genpath doesnot add folder named private or resources in path as it is keyword in R2019a
                    
                    
-                  fprintf('Searching for slx and mdl file Files\n');
+                  obj.WriteLog('Searching for slx and mdl file Files');
                   for cnt = 1: length(list_of_unzipped_files)
                       path = char(list_of_unzipped_files(cnt));
                       
@@ -142,23 +211,83 @@ classdef model_metric < handle
                            m= split(path,"/");
                            %m(end); log
                            %disp(list_of_unzipped_files(cnt));
-                           fprintf('Found : %s\n',char(m(end)));
+                           obj.WriteLog(sprintf('\nFound : %s',char(m(end))));
                            model_name = strrep(char(m(end)),'.slx','');
                            model_name = strrep(model_name,'.mdl','');
-                           fprintf('Calculating Number of blocks of %s\n',model_name);
+                          
+                            
                            try
-                               load_system(model_name)
-                               %blk_cnt=(obj.extract_metrics(model_name));%obj.get_total_block_count(model_name));
-                                 [subsys_count,depth]=(obj.extract_metrics(model_name));
-                               % fprintf("Writing to Database with id = %d Name = %s BlockCount= %d\n",id,char(m(end)),blk_cnt );
-                         
-                               success = obj.write_to_database(id,char(m(end)),subsys_count,depth);%blk_cnt);
-                                catch expection
-                               disp(expection);
+                               load_system(model_name);
+                               obj.WriteLog(sprintf(' %s loaded',model_name));      
+                           catch ME
+                               obj.WriteLog(sprintf('ERROR loading %s',model_name));                    
+                                obj.WriteLog(['ERROR ID : ' ME.identifier]);
+                                obj.WriteLog(['ERROR MSG : ' ME.message]);
+                                continue;
+                               %rmpath(genpath(folder_path));
                            end
+      
+                            try
+                               obj.WriteLog(['Calculating Number of blocks of ' model_name]);
+                               blk_cnt=obj.get_total_block_count(model_name);
+                               obj.WriteLog([' Number of blocks of' model_name ':' num2str( blk_cnt)]);
+
+                             
+                               obj.WriteLog(['Calculating other metrics of :' model_name]);
+                               [schk_blk_count,agg_subsys_count,subsys_count,depth,liblink_count]=(obj.extract_metrics(model_name));
+                               obj.WriteLog(sprintf(" id = %d Name = %s BlockCount= %d AGG_SubCount = %d SubSys_Count=%d Hierarchial_depth=%d LibLInkedCount=%d",...
+                                   id,char(m(end)),blk_cnt, agg_subsys_count,subsys_count,depth,liblink_count));
+                           catch ME
+                               obj.WriteLog(sprintf('ERROR Calculating non compiled metrics for  %s',model_name));                    
+                                obj.WriteLog(['ERROR ID : ' ME.identifier]);
+                                obj.WriteLog(['ERROR MSG : ' ME.message]);
+                                continue;
+                               %rmpath(genpath(folder_path));
+                           end
+                               isLib = bdIsLibrary(model_name);
+                               if isLib
+                                   obj.WriteLog(sprintf('%s is a library. Skipping calculating cyclomatic metric/compile check',model_name));
+                                   obj.close_the_model(model_name);
+                                   obj.write_to_database(id,char(m(end)),1,schk_blk_count,blk_cnt,...
+                                       subsys_count,agg_subsys_count,depth,liblink_count,-1);%blk_cnt);
+                           
+                                   continue
+                               end
+                               
+                               cyclo_complexity = -1; % If model compile fails. cant check cyclomatic complexity. Hence -1 
+                               %{
+                               try
+                                   
+                               
+                                   obj.WriteLog(sprintf('Checking if %s compiles?', model_name));
+                                   obj.does_model_compile(model_name);
+                               catch ME
+                                    obj.WriteLog(sprintf('ERROR Compiling %s',model_name));                    
+                                    obj.WriteLog(['ERROR ID : ' ME.identifier]);
+                                    obj.WriteLog(['ERROR MSG : ' ME.message]);
+                        
+                               end
+                               
+                               try
+                                   obj.WriteLog(['Calculating cyclomatic complexity of :' model_name]);
+                                   cyclo_complexity = obj.extract_cyclomatic_complexity(model_name);
+                                   obj.WriteLog(sprintf("Cyclomatic Complexity : %d ",cyclo_complexity));
+                               catch ME
+                                    obj.WriteLog(sprintf('ERROR Calculating Cyclomatic Complexity %s',model_name));                    
+                                    obj.WriteLog(['ERROR ID : ' ME.identifier]);
+                                    obj.WriteLog(['ERROR MSG : ' ME.message]);
+                               
+                               end
+                               %}
+                               obj.WriteLog(sprintf("Writing to Database"));
+                               success = obj.write_to_database(id,char(m(end)),0,schk_blk_count,blk_cnt,subsys_count,agg_subsys_count,depth,liblink_count,cyclo_complexity);%blk_cnt);
+                               if success ==1
+                                   obj.WriteLog(sprintf("Successful Insert to Database"));
+                               end
+                           obj.close_the_model(model_name);
                        end
                   end
-                  close all hidden;
+                 % close all hidden;
                  
                 rmpath(genpath(folder_path));
                 obj.delete_tmp_folder_content(obj.cfg.tmp_unzipped_dir);
@@ -169,19 +298,17 @@ classdef model_metric < handle
            end
    
         end
-        
-        end
+     
     
-    methods(Static)
-        
 
-        function x = get_total_block_count(model)
-            load_system(model)
+        function x = get_total_block_count(obj,model)
+            %load_system(model)
             [refmodels,modelblock] = find_mdlrefs(model);
            
             % Open dependent models
             for i = 1:length(refmodels)
                 load_system(refmodels{i});
+                obj.WriteLog(sprintf(' %s loaded',refmodels{i}));
             end
             %% Count the number of instances
             mCount = zeros(size(refmodels));
@@ -200,7 +327,7 @@ classdef model_metric < handle
             s = cell(size(refmodels));
             for i = 1:length(refmodels)
                 [t,s{i}] = sldiagnostics(refmodels{i},'CountBlocks');
-                disp([refmodels{i} ' has ' num2str(s{i}(1).count) ' blocks'])
+                obj.WriteLog([refmodels{i} ' has ' num2str(s{i}(1).count) ' blocks'])
             end
             %% Multiply number of blocks, times model count, add to total
             totalBlocks = 0;
@@ -209,26 +336,32 @@ classdef model_metric < handle
             end
             %disp(' ')
             %disp(['Total blocks: ' num2str(totalBlocks)])   
-            x= num2str(totalBlocks);
-            close_system(model)
+            x= totalBlocks;
+            %close_system(model)
         end
- 
-        function [subsys_count,subsys_depth] = extract_metrics(model)
-                
-                load_system(model)
-                
         
+        %Calculates model metrics. Models doesnot need to be compilable.
+        function [blk_count,agg_sub_count,subsys_count,subsys_depth,liblink_count] = extract_metrics(obj,model)
+                
+               
+                
                 %save_system(model,model+_expanded)
                 metric_engine = slmetric.Engine();
                 %Simulink.BlockDiagram.expandSubsystem(block)
                 setAnalysisRoot(metric_engine, 'Root',  model);
-                execute(metric_engine)
+                mData ={'mathworks.metrics.SimulinkBlockCount' ,'mathworks.metrics.SubSystemCount','mathworks.metrics.SubSystemDepth',...
+                    'mathworks.metrics.LibraryLinkCount'};
+                execute(metric_engine,mData)
                 % Include referenced models and libraries in the analysis, 
                 %     these properties are on by default
                    % metric_engine.ModelReferencesSimulationMode = 'AllModes';
                    % metric_engine.AnalyzeLibraries = 1;
-                  res_col = getMetrics(metric_engine,{'mathworks.metrics.SubSystemCount','mathworks.metrics.SubSystemDepth'},'AggregationDepth','all');
-                
+                  res_col = getMetrics(metric_engine,mData,'AggregationDepth','all');
+                count =0;
+                blk_count =0;
+                depth=0;
+                agg_count=0;
+                liblink_count = 0;
                 metricData ={'MetricID','ComponentPath','Value'};
                 cnt = 1;
                 for n=1:length(res_col)
@@ -237,33 +370,80 @@ classdef model_metric < handle
 
                         for m=1:length(results)
                             
-                            disp(['MetricID: ',results(m).MetricID]);
-                            disp(['  ComponentPath: ',results(m).ComponentPath]);
-                            disp(['  Value: ',num2str(results(m).Value)]);
+                            %disp(['MetricID: ',results(m).MetricID]);
+                            %disp(['  ComponentPath: ',results(m).ComponentPath]);
+                            %disp(['  Value: ',num2str(results(m).Value)]);
                             if strcmp(results(m).ComponentPath,model)
                                 if strcmp(results(m).MetricID ,'mathworks.metrics.SubSystemCount')
-                                    count = num2str(results(m).Value);
+                                    count = results(m).Value;
+                                    agg_count =results(m).AggregatedValue;
                                 elseif strcmp(results(m).MetricID,'mathworks.metrics.SubSystemDepth') 
-                                    depth =num2str(results(m).Value);
+                                    depth =results(m).Value;
+                                elseif strcmp(results(m).MetricID,'mathworks.metrics.SimulinkBlockCount') 
+                                    blk_count=results(m).AggregatedValue;
+                                elseif strcmp(results(m).MetricID,'mathworks.metrics.LibraryLinkCount')%Only for compilable models
+                                    liblink_count=results(m).AggregatedValue;
                                 end
                             end
-                            metricData{cnt+1,1} = results(m).MetricID;
-                            metricData{cnt+1,2} = results(m).ComponentPath;
-                            metricData{cnt+1,3} = results(m).Value;
-                            cnt = cnt + 1;
+                            %metricData{cnt+1,1} = results(m).MetricID;
+                            %metricData{cnt+1,2} = results(m).ComponentPath;
+                            %metricData{cnt+1,3} = results(m).Value;
+                            %cnt = cnt + 1;
                         end
                     else
-                        disp(['No results for:',res_col(n).MetricID]);
+                        obj.WriteLog(['No results for:',res_col(n).MetricID]);
                     end
-                    disp(' ');
+               
                 end
                 subsys_count = count;
                 subsys_depth = depth;
+                agg_sub_count = agg_count;
+                
+          
+                
+       
+        end
+        
+        %Extract Cyclomatic complexity %MOdels needs to be compilable 
+        function [cyclo_metric] = extract_cyclomatic_complexity(obj,model)
+                
+            
+                
+                %save_system(model,model+_expanded)
+                metric_engine = slmetric.Engine();
+                %Simulink.BlockDiagram.expandSubsystem(block)
+                setAnalysisRoot(metric_engine, 'Root',  model);
+                mData ={'mathworks.metrics.CyclomaticComplexity'};
                 try
-                    close_system(model);
-                catch exception
-                    disp(exception);
+                    execute(metric_engine,mData);
+                catch
+                    obj.WriteLog("Error Executing Slmetric API");
                 end
+                res_col = getMetrics(metric_engine,mData,'AggregationDepth','all');
+                
+                cyclo_metric = -1 ; %-1 denotes cyclomatic complexit is not computed at all
+                for n=1:length(res_col)
+                    if res_col(n).Status == 0
+                        results = res_col(n).Results;
+
+                        for m=1:length(results)
+                            
+                            %disp(['MetricID: ',results(m).MetricID]);
+                            %disp(['  ComponentPath: ',results(m).ComponentPath]);
+                            %disp(['  Value: ',num2str(results(m).Value)]);
+                            if strcmp(results(m).ComponentPath,model)
+                                if strcmp(results(m).MetricID ,'mathworks.metrics.CyclomaticComplexity')
+                                    cyclo_metric =results(m).AggregatedValue;
+                                end
+                            end
+                        end
+                    else
+                        
+                        obj.WriteLog(['No results for:',res_col(n).MetricID]);
+                    end
+                    
+                end
+                
        
         end
     end
