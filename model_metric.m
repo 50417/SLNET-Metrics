@@ -71,11 +71,13 @@ classdef model_metric < handle
                     obj.colnames(i), " ",obj.coltypes(i) ) ;
             end
            create_metric_table = strcat("create table IF NOT EXISTS ", obj.table_name ...
-            ,'( ID INTEGER primary key autoincrement ,', cols  ,", CONSTRAINT FK FOREIGN KEY(FILE_ID) REFERENCES ", obj.foreign_table_name...
-                 ,'(id))');
+            ,'( ID INTEGER primary key autoincrement ,', cols  ,...
+            ", CONSTRAINT FK FOREIGN KEY(FILE_ID) REFERENCES ", obj.foreign_table_name...
+                 ,'(id) ,'...
+                ,'CONSTRAINT UPair  UNIQUE(FILE_ID, Model_Name) )');
              obj.WriteLog(create_metric_table);
           
-            obj.drop_table();
+            %obj.drop_table();
             exec(obj.conn,create_metric_table);
         end
         %Writes to database 
@@ -267,9 +269,14 @@ classdef model_metric < handle
                                if isLib
                                    obj.WriteLog(sprintf('%s is a library. Skipping calculating cyclomatic metric/compile check',model_name));
                                    obj.close_the_model(model_name);
+                                   try
                                    obj.write_to_database(id,char(m(end)),1,schk_blk_count,blk_cnt,...
                                        subsys_count,agg_subsys_count,depth,liblink_count,-1,-1);%blk_cnt);
-                           
+                                   catch ME
+                                       obj.WriteLog(sprintf('ERROR Inserting to Database %s',model_name));                    
+                                        obj.WriteLog(['ERROR ID : ' ME.identifier]);
+                                     obj.WriteLog(['ERROR MSG : ' ME.message]);
+                                   end
                                    continue
                                end
                                
@@ -299,15 +306,22 @@ classdef model_metric < handle
                                    end
                                %end
                                obj.WriteLog(sprintf("Writing to Database"));
-                               success = obj.write_to_database(id,char(m(end)),0,schk_blk_count,blk_cnt,subsys_count,...
-                                   agg_subsys_count,depth,liblink_count,compiles,cyclo_complexity);%blk_cnt);
+                               try
+                                    success = obj.write_to_database(id,char(m(end)),0,schk_blk_count,blk_cnt,subsys_count,...
+                                            agg_subsys_count,depth,liblink_count,compiles,cyclo_complexity);%blk_cnt);
+                               catch ME
+                                    obj.WriteLog(sprintf('ERROR Inserting to Database %s',model_name));                    
+                                    obj.WriteLog(['ERROR ID : ' ME.identifier]);
+                                    obj.WriteLog(['ERROR MSG : ' ME.message]);
+                               end
                                if success ==1
                                    obj.WriteLog(sprintf("Successful Insert to Database"));
+                                   success = 0;
                                end
                            obj.close_the_model(model_name);
                        end
                   end
-                 % close all hidden;
+                  close all hidden;
                  
                 rmpath(genpath(folder_path));
                 try
