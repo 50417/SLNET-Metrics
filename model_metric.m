@@ -8,6 +8,8 @@ classdef model_metric < handle
         table_name;
         foreign_table_name;
         
+        blk_info;
+        
         conn;
         colnames = {'FILE_ID','Model_Name','is_Lib','SCHK_Block_count','SLDiag_Block_count','SubSystem_count_Top','Agg_SubSystem_count','Hierarchy_depth','LibraryLinked_Count','compiles','CComplexity'};
         coltypes = {'INTEGER','VARCHAR','Boolean','NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC','Boolean','NUMERIC'};
@@ -23,6 +25,8 @@ classdef model_metric < handle
             obj.cfg = model_metric_cfg();
             obj.table_name = obj.cfg.table_name;
             obj.foreign_table_name = obj.cfg.foreign_table_name;
+            
+            obj.blk_info = get_block_info();
             
             %Creates folder to extract zipped filed files in current
             %directory.
@@ -77,7 +81,7 @@ classdef model_metric < handle
                 ,'CONSTRAINT UPair  UNIQUE(FILE_ID, Model_Name) )');
              obj.WriteLog(create_metric_table);
           
-            %obj.drop_table();
+            obj.drop_table();
             exec(obj.conn,create_metric_table);
         end
         %Writes to database 
@@ -253,7 +257,11 @@ classdef model_metric < handle
                                blk_cnt=obj.get_total_block_count(model_name);
                                obj.WriteLog([' Number of blocks of' model_name ':' num2str( blk_cnt)]);
 
-                             
+                               obj.WriteLog(['Populating block info of ' model_name]);
+                               [t,blk_type_count]= sldiagnostics(model_name,'CountBlocks');
+                               obj.blk_info.populate_block_info(id,model_name,blk_type_count);
+                               obj.WriteLog([' Block Info Updated of' model_name]);
+                               
                                obj.WriteLog(['Calculating other metrics of :' model_name]);
                                [schk_blk_count,agg_subsys_count,subsys_count,depth,liblink_count]=(obj.extract_metrics(model_name));
                                obj.WriteLog(sprintf(" id = %d Name = %s BlockCount= %d AGG_SubCount = %d SubSys_Count=%d Hierarchial_depth=%d LibLInkedCount=%d",...
