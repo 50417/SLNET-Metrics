@@ -34,7 +34,7 @@ methods
                  ,'(id))');
             % obj.WriteLog(create_metric_table);
           
-            obj.drop_table();
+            %obj.drop_table();
             exec(obj.conn,create_metric_table);
         end
               

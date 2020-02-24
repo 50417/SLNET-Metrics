@@ -203,15 +203,14 @@ classdef model_metric < handle
                     tmp_var = strrep(name,'.zip',''); 
                     id = str2num(tmp_var);
          
-               
-                    if(id == 67689 || id == 49592 ||id==45571425 || (id == 152409754 || id ==25870564) )% potential crashes or hangs
+               %id==70131 || kr_billiards_debug crashes MATLAB when
+               %compiling
+               %id == 67689 cant find count becuase referenced model has
+               %protected component.
+                    if( id==45571425 || (id == 152409754 || id ==25870564) )% potential crashes or hangs
                        continue
                   end
-                    
-                    if (id==51243)
-                        obj.WriteLog('Skipping 51243 File')
-                        
-                    end
+             
                    %unzip the file TODO: Try CATCH
                    obj.WriteLog('Extracting Files');
                    list_of_unzipped_files = unzip( obj.get_full_path(list_of_zip_files(cnt).name), obj.cfg.tmp_unzipped_dir);
@@ -329,7 +328,7 @@ classdef model_metric < handle
                            obj.close_the_model(model_name);
                        end
                   end
-                  close all hidden;
+                 % close all hidden;
                  
                 rmpath(genpath(folder_path));
                 try
