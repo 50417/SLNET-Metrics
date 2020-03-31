@@ -11,8 +11,8 @@ classdef model_metric < handle
         blk_info;
         
         conn;
-        colnames = {'FILE_ID','Model_Name','is_Lib','SCHK_Block_count','SLDiag_Block_count','SubSystem_count_Top','Agg_SubSystem_count','Hierarchy_depth','LibraryLinked_Count','compiles','CComplexity','Sim_time','Compile_time','Alge_loop_Cnt'};
-        coltypes = {'INTEGER','VARCHAR','Boolean','NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC','Boolean','NUMERIC','NUMERIC','NUMERIC','NUMERIC'};
+        colnames = {'FILE_ID','Model_Name','is_Lib','SCHK_Block_count','SLDiag_Block_count','SubSystem_count_Top','Agg_SubSystem_count','Hierarchy_depth','LibraryLinked_Count','compiles','CComplexity','Sim_time','Compile_time','Alge_loop_Cnt','target_hw','solver_type','sim_mode'};
+        coltypes = {'INTEGER','VARCHAR','Boolean','NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC','Boolean','NUMERIC','NUMERIC','NUMERIC','NUMERIC','VARCHAR','VARCHAR','VARCHAR'};
 
 
     end
@@ -107,10 +107,10 @@ classdef model_metric < handle
         end
         %Writes to database 
         function output_bol = write_to_database(obj,id,simulink_model_name,isLib,schK_blk_count,block_count,...
-                                            subsys_count,agg_subsys_count,depth,linkedcount,compiles, cyclo,sim_time,compile_time,num_alge_loop)%block_count)
+                                            subsys_count,agg_subsys_count,depth,linkedcount,compiles, cyclo,sim_time,compile_time,num_alge_loop,target_hw,solver_type,sim_mode)%block_count)
             insert(obj.conn,obj.table_name,obj.colnames, ...
                 {id,simulink_model_name,isLib,schK_blk_count,block_count,subsys_count,...
-                agg_subsys_count,depth,linkedcount,compiles,cyclo,sim_time,compile_time,num_alge_loop});%block_count});
+                agg_subsys_count,depth,linkedcount,compiles,cyclo,sim_time,compile_time,num_alge_loop,target_hw,solver_type,sim_mode});%block_count});
             output_bol= 1;
         end
         %gets File Ids and model name from table
@@ -217,6 +217,20 @@ classdef model_metric < handle
             end
         end
         
+        function [target_hw,solver_type,sim_mode]=get_solver_hw_simmode(obj,model)
+            cs = getActiveConfigSet(model);
+            target_hw = cs.get_param('TargetHWDeviceType')
+
+
+            solver_type = get_param(model,'SolverType');
+            if isempty(solver_type)
+                solver_type = 'NA';
+            end
+
+
+            sim_mode = get_param(model, 'SimulationMode');
+        end
+        
         %Main function to call to extract model metrics
         function obj = process_all_models_file(obj)
             [list_of_zip_files] = dir(obj.cfg.source_dir); %gives struct with date, name, size info, https://www.mathworks.com/matlabcentral/answers/282562-what-is-the-difference-between-dir-and-ls
@@ -239,12 +253,11 @@ classdef model_metric < handle
                     tmp_var = strrep(name,'.zip',''); 
                     id = str2num(tmp_var);
          
-                %id==70131 || kr_billiards_debug crashes MATLAB when
--               %compiling .. yet to be investigated
-               %id == 67689 cant find count becuase referenced model has
-               %protected component.
-               %id == 152409754 hangs because requires user input
-               %id == 152409754  testing
+                    %id==70131 || kr_billiards_debug crashes MATLAB when compiling 
+                   %id == 67689 cant find count becuase referenced model has
+                   %protected component.
+                   %id == 152409754 hangs because requires user input
+                   %id == 152409754  testing
                    if( id==45571425 || id ==25870564)  % potential crashes or hangs
                        continue
                   end
@@ -383,7 +396,23 @@ classdef model_metric < handle
                                         obj.WriteLog(['ERROR ID : ' ME.identifier]);
                                         obj.WriteLog(['ERROR MSG : ' ME.message]);
 
-                                   end
+                                    end
+                                    target_hw = '';
+                                    solver_type = '';
+                                    sim_mode = '';
+                                     try
+                                       obj.WriteLog(['Calculating Target Hardware | Simulation Mode | Solver of ' model_name]);
+                                       [target_hw,solver_type,sim_mode] = obj.get_solver_hw_simmode(model_name)
+                                       obj.WriteLog(sprintf("Target HW : %s Solver Type : %s Sim_mode : %s ",target_hw,solver_type,sim_mode));
+                                   catch ME
+                                        obj.WriteLog(sprintf('ERROR Calculating Simulation Time of %s',model_name));                    
+                                        obj.WriteLog(['ERROR ID : ' ME.identifier]);
+                                        obj.WriteLog(['ERROR MSG : ' ME.message]);
+
+                                     end
+                                  
+                                 
+                                   
                                  
                                    
                                    
@@ -391,7 +420,7 @@ classdef model_metric < handle
                                obj.WriteLog(sprintf("Writing to Database"));
                                try
                                     success = obj.write_to_database(id,char(m(end)),0,schk_blk_count,blk_cnt,subsys_count,...
-                                            agg_subsys_count,depth,liblink_count,compiles,cyclo_complexity,simulation_time,compile_time,num_alge_loop);%blk_cnt);
+                                            agg_subsys_count,depth,liblink_count,compiles,cyclo_complexity,simulation_time,compile_time,num_alge_loop,target_hw,solver_type,sim_mode);%blk_cnt);
                                catch ME
                                     obj.WriteLog(sprintf('ERROR Inserting to Database %s',model_name));                    
                                     obj.WriteLog(['ERROR ID : ' ME.identifier]);
