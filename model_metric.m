@@ -11,8 +11,8 @@ classdef model_metric < handle
         blk_info;
         
         conn;
-        colnames = {'FILE_ID','Model_Name','is_Lib','SCHK_Block_count','SLDiag_Block_count','SubSystem_count_Top','Agg_SubSystem_count','Hierarchy_depth','LibraryLinked_Count','compiles','CComplexity'};
-        coltypes = {'INTEGER','VARCHAR','Boolean','NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC','Boolean','NUMERIC'};
+        colnames = {'FILE_ID','Model_Name','is_Lib','SCHK_Block_count','SLDiag_Block_count','SubSystem_count_Top','Agg_SubSystem_count','Hierarchy_depth','LibraryLinked_Count','compiles','CComplexity','Sim_time','Compile_time','Alge_loop_Cnt'};
+        coltypes = {'INTEGER','VARCHAR','Boolean','NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC','Boolean','NUMERIC','NUMERIC','NUMERIC','NUMERIC'};
 
 
     end
@@ -38,7 +38,28 @@ classdef model_metric < handle
             end
             obj.connect_table();
         end
-        
+        %Gets simulation time of the model based on the models
+        %configuration. If the stopTime of the model is set to Inf, then it
+        % sets the simulation time to -1
+        %What is simulation Time: https://www.mathworks.com/matlabcentral/answers/163843-simulation-time-and-sampling-time
+        function sim_time = get_simulation_time(obj, model) % cs = configuarationSettings of a model
+            cs = getActiveConfigSet(model) ;
+            startTime = cs.get_param('StartTime');
+            stopTime = cs.get_param('StopTime'); %returns a string when time is finite
+            try
+                startTime = eval(startTime);
+                stopTime = eval(stopTime); %making sure that evaluation parts converts to numeric data
+                if isfinite(stopTime) && isfinite(startTime) % isfinite() Check whether symbolic array elements are finite
+                    
+                    assert(isnumeric(startTime) && isnumeric(stopTime));
+                    sim_time = stopTime-startTime;
+                else
+                    sim_time = -1;
+                end
+            catch
+                sim_time = -1;
+            end
+        end
       
             %Logging purpose
         %Credits: https://www.mathworks.com/matlabcentral/answers/1905-logging-in-a-matlab-script
@@ -86,10 +107,10 @@ classdef model_metric < handle
         end
         %Writes to database 
         function output_bol = write_to_database(obj,id,simulink_model_name,isLib,schK_blk_count,block_count,...
-                                            subsys_count,agg_subsys_count,depth,linkedcount,compiles, cyclo)%block_count)
+                                            subsys_count,agg_subsys_count,depth,linkedcount,compiles, cyclo,sim_time,compile_time,num_alge_loop)%block_count)
             insert(obj.conn,obj.table_name,obj.colnames, ...
                 {id,simulink_model_name,isLib,schK_blk_count,block_count,subsys_count,...
-                agg_subsys_count,depth,linkedcount,compiles,cyclo});%block_count});
+                agg_subsys_count,depth,linkedcount,compiles,cyclo,sim_time,compile_time,num_alge_loop});%block_count});
             output_bol= 1;
         end
         %gets File Ids and model name from table
@@ -155,6 +176,14 @@ classdef model_metric < handle
             
         end
         
+        %returns number of algebraic loop in the model. 
+        %What is algebraic Loops :
+        %https://www.mathworks.com/help/simulink/ug/algebraic-loops.html  https://www.mathworks.com/matlabcentral/answers/95310-what-are-algebraic-loops-in-simulink-and-how-do-i-solve-them
+        function num_alge_loop = get_number_of_algebraic_loops(obj,model)
+            alge_loops = Simulink.BlockDiagram.getAlgebraicLoops(model);
+            num_alge_loop  = numel(alge_loops);            
+        end
+        
         %Checks if a models compiles for not
         function compiles = does_model_compile(obj,model)
                 %eval(['mex /home/sls6964xx/Desktop/UtilityProgramNConfigurationFile/ModelMetricCollection/tmp/SDF-MATLAB-master/C/src/sfun_ndtable.cpp']);
@@ -174,13 +203,20 @@ classdef model_metric < handle
                close_system(model);
                bdclose(model);
             catch exception
+                exception
                 obj.WriteLog(exception.message);
                 obj.WriteLog("Trying Again");
-                eval([model '([],[],[],''sizes'')']);
+                if (strcmp(exception.identifier ,'Simulink:Commands:InvModelDirty' ))
+                    obj.WriteLog("Force Closing");
+                    bdclose(model);
+                    return;
+                end
+                %eval([model '([],[],[],''sizes'')']);
                 eval([model '([],[],[],''term'')']);
                 obj.close_the_model(model);
             end
         end
+        
         %Main function to call to extract model metrics
         function obj = process_all_models_file(obj)
             [list_of_zip_files] = dir(obj.cfg.source_dir); %gives struct with date, name, size info, https://www.mathworks.com/matlabcentral/answers/282562-what-is-the-difference-between-dir-and-ls
@@ -203,11 +239,13 @@ classdef model_metric < handle
                     tmp_var = strrep(name,'.zip',''); 
                     id = str2num(tmp_var);
          
-               %id==70131 || kr_billiards_debug crashes MATLAB when
-               %compiling
+                %id==70131 || kr_billiards_debug crashes MATLAB when
+-               %compiling .. yet to be investigated
                %id == 67689 cant find count becuase referenced model has
                %protected component.
-                    if( id==45571425 || (id == 152409754 || id ==25870564) )% potential crashes or hangs
+               %id == 152409754 hangs because requires user input
+               %id == 152409754  testing
+                   if( id==45571425 || id ==25870564)  % potential crashes or hangs
                        continue
                   end
              
@@ -252,6 +290,10 @@ classdef model_metric < handle
                            end
       
                             try
+                               obj.WriteLog(['Calculating Number of lines of ' model_name]);
+                               lines = find_system(model_name,'SearchDepth','1','FindAll','on', 'LookUnderMasks', 'all', 'FollowLinks','on', 'type','line');
+                               obj.WriteLog([' Number of lines  in' model_name ':' num2str(size( lines))]);
+                               
                                obj.WriteLog(['Calculating Number of blocks of ' model_name]);
                                blk_cnt=obj.get_total_block_count(model_name);
                                obj.WriteLog([' Number of blocks of' model_name ':' num2str( blk_cnt)]);
@@ -272,7 +314,7 @@ classdef model_metric < handle
                                 continue;
                                %rmpath(genpath(folder_path));
                            end
-                               isLib = bdIsLibrary(model_name);
+                               isLib = bdIsLibrary(model_name);% Generally Library are precompiled:  https://www.mathworks.com/help/simulink/ug/creating-block-libraries.html
                                if isLib
                                    obj.WriteLog(sprintf('%s is a library. Skipping calculating cyclomatic metric/compile check',model_name));
                                    obj.close_the_model(model_name);
@@ -288,16 +330,38 @@ classdef model_metric < handle
                                end
                                
                                cyclo_complexity = -1; % If model compile fails. cant check cyclomatic complexity. Hence -1 
-                               compiles = 0; 
+                               compiles = 0;
+                               compile_time = -1;
+                               num_alge_loop = 0;
                                try                               
                                   obj.WriteLog(sprintf('Checking if %s compiles?', model_name));
                                    compiles = obj.does_model_compile(model_name);
+                                   
                                     obj.close_the_model(model_name);
                                catch ME
                                     obj.WriteLog(sprintf('ERROR Compiling %s',model_name));                    
                                     obj.WriteLog(['ERROR ID : ' ME.identifier]);
                                     obj.WriteLog(['ERROR MSG : ' ME.message]);
                         
+                               end
+                               if compiles
+                                   try
+                                        [~, sRpt] = sldiagnostics(model_name, 'CompileStats');
+                                        compile_time = sum([sRpt.Statistics(:).WallClockTime]);
+                                        obj.WriteLog(sprintf(' Compile Time of  %s : %d',model_name,compile_time)); 
+                                        
+                                        obj.WriteLog(sprintf(' Checking ALgebraic Loop of  %s',model_name)); 
+                                        
+                                        num_alge_loop = obj.get_number_of_algebraic_loops(model_name);
+                                        obj.WriteLog(sprintf(' Algebraic Loop of  %s : %d',model_name,num_alge_loop)); 
+                                        
+                                   catch
+                                       ME
+                                        obj.WriteLog(sprintf('ERROR calculating compile time or algebraic loop of  %s',model_name)); 
+                                        obj.WriteLog(['ERROR ID : ' ME.identifier]);
+                                          obj.WriteLog(['ERROR MSG : ' ME.message]);
+                                       
+                                   end
                                end
                                %}
                                %if (compiles)
@@ -309,13 +373,25 @@ classdef model_metric < handle
                                         obj.WriteLog(sprintf('ERROR Calculating Cyclomatic Complexity %s',model_name));                    
                                         obj.WriteLog(['ERROR ID : ' ME.identifier]);
                                         obj.WriteLog(['ERROR MSG : ' ME.message]);
+                                   end
+                                    try
+                                       obj.WriteLog(['Calculating Simulation Time of the model :' model_name]);
+                                       simulation_time = obj.get_simulation_time(model_name);
+                                       obj.WriteLog(sprintf("Simulation Time  : %d (-1 means cant calculate due to Inf stoptime) ",simulation_time));
+                                   catch ME
+                                        obj.WriteLog(sprintf('ERROR Calculating Simulation Time of %s',model_name));                    
+                                        obj.WriteLog(['ERROR ID : ' ME.identifier]);
+                                        obj.WriteLog(['ERROR MSG : ' ME.message]);
 
                                    end
+                                 
+                                   
+                                   
                                %end
                                obj.WriteLog(sprintf("Writing to Database"));
                                try
                                     success = obj.write_to_database(id,char(m(end)),0,schk_blk_count,blk_cnt,subsys_count,...
-                                            agg_subsys_count,depth,liblink_count,compiles,cyclo_complexity);%blk_cnt);
+                                            agg_subsys_count,depth,liblink_count,compiles,cyclo_complexity,simulation_time,compile_time,num_alge_loop);%blk_cnt);
                                catch ME
                                     obj.WriteLog(sprintf('ERROR Inserting to Database %s',model_name));                    
                                     obj.WriteLog(['ERROR ID : ' ME.identifier]);
