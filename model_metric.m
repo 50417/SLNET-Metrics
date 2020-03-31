@@ -258,7 +258,8 @@ classdef model_metric < handle
                    %protected component.
                    %id == 152409754 hangs because requires user input
                    %id == 152409754  testing
-                   if( id==45571425 || id ==25870564)  % potential crashes or hangs
+                   %id ===24437619 %suspious
+                  if (id ==24437619 || id==198236388 || id == 124448612 || id==45571425 || id == 152409754 || id ==25870564) % potential crashes or hangs
                        continue
                   end
              
