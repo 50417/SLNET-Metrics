@@ -31,6 +31,10 @@ classdef model_metric_cfg < handle
         blk_info_table_name ;
         blk_info_foreign_table_name ;
         
+        lvl_info_table_name;
+        lvl_info_foreign_table_name;
+
+        
         
         %optional
         tmp_unzipped_dir = ''; %Stores UnZipped Files in this directory % Defaults to  current directory with folder tmp/
@@ -50,6 +54,10 @@ classdef model_metric_cfg < handle
 
             obj.blk_info_table_name = strcat(obj.project_source,'_Block_Info');
             obj.blk_info_foreign_table_name = strcat(obj.project_source,'_Metric'); 
+            
+            obj.lvl_info_table_name = strcat(obj.project_source,'_Hierar_Info');
+           obj.lvl_info_foreign_table_name = strcat(obj.project_source,'_Metric');
+
         end
     end
     
