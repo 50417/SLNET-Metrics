@@ -4,8 +4,8 @@ properties
     foreign_table_name;
     cfg;  
     conn;
-    colnames = {'File_Name','Model_Name','isMask','BLK_TYPE','Count'};
-    coltypes = {'NUMERIC','VARCHAR','Boolean','NUMERIC','NUMERIC'};
+    colnames = {'File_Name','Model_Name','BLK_TYPE','Count'};
+    coltypes = {'NUMERIC','VARCHAR','NUMERIC','NUMERIC'};
 
     
 end
@@ -34,7 +34,7 @@ methods
                  ,'(id))');
             % obj.WriteLog(create_metric_table);
           
-            %obj.drop_table();
+            obj.drop_table();
             exec(obj.conn,create_metric_table);
         end
               
@@ -47,20 +47,25 @@ methods
         end
         
         %Writes to database 
-        function output_bol = write_to_database(obj,id,model_name,is_mask,blk_type,block_count)%block_count)
+        function output_bol = write_to_database(obj,id,model_name,blk_type,block_count)%block_count)
                                         
             insert(obj.conn,obj.table_name,obj.colnames, ...
-                {id,model_name,is_mask,blk_type,block_count});
+                {id,model_name,blk_type,block_count});
             output_bol= 1;
         end
         
         
     function success = populate_block_info(obj,file_name, mdl_name,blk_type_count)
-        for i = 2 : length(blk_type_count)
-            obj.write_to_database(file_name,mdl_name,blk_type_count(i).isMask,blk_type_count(i).type,blk_type_count(i).count);
+        blk_type_keys = blk_type_count.keys();
+        for K = 1 :length(blk_type_keys)
+
+                
+        %Write to database
+
+            obj.write_to_database(file_name,mdl_name,blk_type_keys{K},blk_type_count.get(blk_type_keys{K}));
         end
         success = 1;
-        %Write to database
+ 
     end
 end
 

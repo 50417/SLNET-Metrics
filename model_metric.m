@@ -9,12 +9,19 @@ classdef model_metric < handle
         foreign_table_name;
         
         blk_info;
+        lvl_info;
         
         conn;
-        colnames = {'FILE_ID','Model_Name','is_Lib','SCHK_Block_count','SLDiag_Block_count','SubSystem_count_Top','Agg_SubSystem_count','Hierarchy_depth','LibraryLinked_Count','compiles','CComplexity','Sim_time','Compile_time','Alge_loop_Cnt','target_hw','solver_type','sim_mode'};
-        coltypes = {'INTEGER','VARCHAR','Boolean','NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC','Boolean','NUMERIC','NUMERIC','NUMERIC','NUMERIC','VARCHAR','VARCHAR','VARCHAR'};
+        colnames = {'FILE_ID','Model_Name','is_Lib','SCHK_Block_count','SLDiag_Block_count','SubSystem_count_Top',...
+            'Agg_SubSystem_count','Hierarchy_depth','LibraryLinked_Count',...,
+            'compiles','CComplexity',...
+            'Sim_time','Compile_time','Alge_loop_Cnt','target_hw','solver_type','sim_mode'...
+            ,'total_ConnH_cnt','total_desc_cnt','ncs_cnt','unique_sfun_count','sfun_reused_key_val'};
+        coltypes = {'INTEGER','VARCHAR','Boolean','NUMERIC','NUMERIC','NUMERIC','NUMERIC',...,
+            'NUMERIC','NUMERIC','Boolean','NUMERIC','NUMERIC','NUMERIC','NUMERIC','VARCHAR','VARCHAR','VARCHAR'...
+            ,'NUMERIC','NUMERIC','NUMERIC','NUMERIC','VARCHAR'};
 
-
+       
     end
     
     methods
@@ -26,7 +33,8 @@ classdef model_metric < handle
             obj.table_name = obj.cfg.table_name;
             obj.foreign_table_name = obj.cfg.foreign_table_name;
             
-            obj.blk_info = get_block_info();
+            obj.blk_info = get_block_info(); % Only extracts block info of top lvl... TODO: Deprecate this
+            obj.lvl_info = obtain_non_supported_hierarchial_metrics();
             
             %Creates folder to extract zipped filed files in current
             %directory.
@@ -107,10 +115,16 @@ classdef model_metric < handle
         end
         %Writes to database 
         function output_bol = write_to_database(obj,id,simulink_model_name,isLib,schK_blk_count,block_count,...
-                                            subsys_count,agg_subsys_count,depth,linkedcount,compiles, cyclo,sim_time,compile_time,num_alge_loop,target_hw,solver_type,sim_mode)%block_count)
+                                            subsys_count,agg_subsys_count,depth,linkedcount,compiles, cyclo,...
+                                            sim_time,compile_time,num_alge_loop,target_hw,solver_type,sim_mode,...
+                                            total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count,...
+                                            sfun_reused_key_val)%block_count)
             insert(obj.conn,obj.table_name,obj.colnames, ...
                 {id,simulink_model_name,isLib,schK_blk_count,block_count,subsys_count,...
-                agg_subsys_count,depth,linkedcount,compiles,cyclo,sim_time,compile_time,num_alge_loop,target_hw,solver_type,sim_mode});%block_count});
+                agg_subsys_count,depth,linkedcount,compiles,cyclo,...
+                sim_time,compile_time,num_alge_loop,target_hw,solver_type,sim_mode...
+                ,total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count,...
+                sfun_reused_key_val});%block_count});
             output_bol= 1;
         end
         %gets File Ids and model name from table
@@ -219,7 +233,7 @@ classdef model_metric < handle
         
         function [target_hw,solver_type,sim_mode]=get_solver_hw_simmode(obj,model)
             cs = getActiveConfigSet(model);
-            target_hw = cs.get_param('TargetHWDeviceType')
+            target_hw = cs.get_param('TargetHWDeviceType');
 
 
             solver_type = get_param(model,'SolverType');
@@ -284,6 +298,8 @@ classdef model_metric < handle
                            %m(end); log
                            %disp(list_of_unzipped_files(cnt));
                            obj.WriteLog(sprintf('\nFound : %s',char(m(end))));
+                           
+                          
                            model_name = strrep(char(m(end)),'.slx','');
                            model_name = strrep(model_name,'.mdl','');
                           %Skip if Id and model name already in database 
@@ -304,24 +320,32 @@ classdef model_metric < handle
                            end
       
                             try
-                               obj.WriteLog(['Calculating Number of lines of ' model_name]);
-                               lines = find_system(model_name,'SearchDepth','1','FindAll','on', 'LookUnderMasks', 'all', 'FollowLinks','on', 'type','line');
-                               obj.WriteLog([' Number of lines  in' model_name ':' num2str(size( lines))]);
-                               
+                       
                                obj.WriteLog(['Calculating Number of blocks of ' model_name]);
                                blk_cnt=obj.get_total_block_count(model_name);
                                obj.WriteLog([' Number of blocks of' model_name ':' num2str( blk_cnt)]);
 
-                               obj.WriteLog(['Populating block info of ' model_name]);
-                               [t,blk_type_count]= sldiagnostics(model_name,'CountBlocks');
+                              
+                               obj.WriteLog(['Populating level wise | hierarchial info of ' model_name]);
+                               [total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count,sfun_reused_key_val,blk_type_count] = obj.lvl_info.populate_hierarchy_info(id, model_name);
+                               obj.WriteLog([' level wise Info Updated of' model_name]);
+                               obj.WriteLog(sprintf("Lines= %d Descendant count = %d NCS count=%d Unique S fun count=%d",...
+                               total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count));
+                                
+                                obj.WriteLog(['Populating block info of ' model_name]); 
+                               %[t,blk_type_count]=
+                               %sldiagnostics(model_name,'CountBlocks');
+                               %Only gives top level block types
                                obj.blk_info.populate_block_info(id,model_name,blk_type_count);
                                obj.WriteLog([' Block Info Updated of' model_name]);
-                               
-                               obj.WriteLog(['Calculating other metrics of :' model_name]);
+                              
+                           
+                              obj.WriteLog(['Calculating other metrics of :' model_name]);
                                [schk_blk_count,agg_subsys_count,subsys_count,depth,liblink_count]=(obj.extract_metrics(model_name));
                                obj.WriteLog(sprintf(" id = %d Name = %s BlockCount= %d AGG_SubCount = %d SubSys_Count=%d Hierarchial_depth=%d LibLInkedCount=%d",...
                                    id,char(m(end)),blk_cnt, agg_subsys_count,subsys_count,depth,liblink_count));
                            catch ME
+                               ME
                                obj.WriteLog(sprintf('ERROR Calculating non compiled metrics for  %s',model_name));                    
                                 obj.WriteLog(['ERROR ID : ' ME.identifier]);
                                 obj.WriteLog(['ERROR MSG : ' ME.message]);
@@ -334,7 +358,10 @@ classdef model_metric < handle
                                    obj.close_the_model(model_name);
                                    try
                                    obj.write_to_database(id,char(m(end)),1,schk_blk_count,blk_cnt,...
-                                       subsys_count,agg_subsys_count,depth,liblink_count,-1,-1);%blk_cnt);
+                                       subsys_count,agg_subsys_count,depth,liblink_count,-1,-1 ...
+                                   ,-1,-1,-1,'N/A','N/A','N/A'...
+                                            ,-1,-1,-1,-1 ...
+                                            ,"N/A");%blk_cnt);
                                    catch ME
                                        obj.WriteLog(sprintf('ERROR Inserting to Database %s',model_name));                    
                                         obj.WriteLog(['ERROR ID : ' ME.identifier]);
@@ -376,9 +403,6 @@ classdef model_metric < handle
                                           obj.WriteLog(['ERROR MSG : ' ME.message]);
                                        
                                    end
-                               end
-                               %}
-                               %if (compiles)
                                    try
                                        obj.WriteLog(['Calculating cyclomatic complexity of :' model_name]);
                                        cyclo_complexity = obj.extract_cyclomatic_complexity(model_name);
@@ -388,6 +412,10 @@ classdef model_metric < handle
                                         obj.WriteLog(['ERROR ID : ' ME.identifier]);
                                         obj.WriteLog(['ERROR MSG : ' ME.message]);
                                    end
+                               end
+                               %}
+                               %if (compiles)
+                                   
                                     try
                                        obj.WriteLog(['Calculating Simulation Time of the model :' model_name]);
                                        simulation_time = obj.get_simulation_time(model_name);
@@ -403,7 +431,7 @@ classdef model_metric < handle
                                     sim_mode = '';
                                      try
                                        obj.WriteLog(['Calculating Target Hardware | Simulation Mode | Solver of ' model_name]);
-                                       [target_hw,solver_type,sim_mode] = obj.get_solver_hw_simmode(model_name)
+                                       [target_hw,solver_type,sim_mode] = obj.get_solver_hw_simmode(model_name);
                                        obj.WriteLog(sprintf("Target HW : %s Solver Type : %s Sim_mode : %s ",target_hw,solver_type,sim_mode));
                                    catch ME
                                         obj.WriteLog(sprintf('ERROR Calculating Simulation Time of %s',model_name));                    
@@ -421,7 +449,10 @@ classdef model_metric < handle
                                obj.WriteLog(sprintf("Writing to Database"));
                                try
                                     success = obj.write_to_database(id,char(m(end)),0,schk_blk_count,blk_cnt,subsys_count,...
-                                            agg_subsys_count,depth,liblink_count,compiles,cyclo_complexity,simulation_time,compile_time,num_alge_loop,target_hw,solver_type,sim_mode);%blk_cnt);
+                                            agg_subsys_count,depth,liblink_count,compiles,cyclo_complexity...
+                                            ,simulation_time,compile_time,num_alge_loop,target_hw,solver_type,sim_mode...
+                                            ,total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count...
+                                            ,sfun_reused_key_val);%blk_cnt);
                                catch ME
                                     obj.WriteLog(sprintf('ERROR Inserting to Database %s',model_name));                    
                                     obj.WriteLog(['ERROR ID : ' ME.identifier]);
@@ -451,7 +482,7 @@ classdef model_metric < handle
    
         end
      
-    
+        
 
         function x = get_total_block_count(obj,model)
             %load_system(model)
