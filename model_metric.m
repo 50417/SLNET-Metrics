@@ -110,7 +110,7 @@ classdef model_metric < handle
                 ,'CONSTRAINT UPair  UNIQUE(FILE_ID, Model_Name) )');
              obj.WriteLog(create_metric_table);
           
-            obj.drop_table();
+           % obj.drop_table();
             exec(obj.conn,create_metric_table);
         end
         %Writes to database 
@@ -361,7 +361,7 @@ classdef model_metric < handle
                                        subsys_count,agg_subsys_count,depth,liblink_count,-1,-1 ...
                                    ,-1,-1,-1,'N/A','N/A','N/A'...
                                             ,-1,-1,-1,-1 ...
-                                            ,"N/A");%blk_cnt);
+                                            ,'N/A');%blk_cnt);
                                    catch ME
                                        obj.WriteLog(sprintf('ERROR Inserting to Database %s',model_name));                    
                                         obj.WriteLog(['ERROR ID : ' ME.identifier]);
