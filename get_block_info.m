@@ -12,6 +12,8 @@ end
 methods
     function obj = get_block_info()
             warning on verbose
+            %obj.WriteLog("open");
+            
             obj.cfg = model_metric_cfg();
             obj.table_name = obj.cfg.blk_info_table_name;
             obj.foreign_table_name = obj.cfg.blk_info_foreign_table_name;
@@ -20,6 +22,14 @@ methods
             obj.connect_table();
     end
     
+       %Logging purpose
+        function WriteLog(obj,Data)
+            global FID 
+          
+            fprintf(FID, '%s: %s\n',datestr(now, 'dd/mm/yy-HH:MM:SS'), Data);
+            % Write to the screen at the same time:
+            fprintf('%s: %s\n', datestr(now, 'dd/mm/yy-HH:MM:SS'), Data);
+        end
     %creates Table to store model metrics 
         function connect_table(obj)
             obj.conn = sqlite(obj.cfg.dbfile,'connect');
@@ -32,13 +42,14 @@ methods
            create_metric_table = strcat("create table IF NOT EXISTS ", obj.table_name ...
             ,'( M_ID INTEGER primary key autoincrement ,', cols  ,", CONSTRAINT FK FOREIGN KEY(M_ID) REFERENCES ", obj.foreign_table_name...
                  ,'(id))');
-            % obj.WriteLog(create_metric_table);
+         
           
              if obj.cfg.DROP_TABLES
-                %obj.WriteLog(sprintf("Dropping %s",obj.table_name))
+                obj.WriteLog(sprintf("Dropping %s",obj.table_name))
                 obj.drop_table();
-                %obj.WriteLog(sprintf("Dropped %s",obj.table_name))
-            end
+                obj.WriteLog(sprintf("Dropped %s",obj.table_name))
+             end
+            obj.WriteLog(create_metric_table);
             exec(obj.conn,create_metric_table);
             
         end
@@ -62,11 +73,9 @@ methods
         
     function success = populate_block_info(obj,file_name, mdl_name,blk_type_count)
         blk_type_keys = blk_type_count.keys();
+        obj.WriteLog(sprintf("Writing to %s",obj.table_name))
         for K = 1 :length(blk_type_keys)
-
-                
-        %Write to database
-
+            obj.WriteLog(sprintf("FileName = %d modelName = %s BlockType = %s BlockCount = %d ",file_name,mdl_name,blk_type_keys{K},blk_type_count.get(blk_type_keys{K})))
             obj.write_to_database(file_name,mdl_name,blk_type_keys{K},blk_type_count.get(blk_type_keys{K}));
         end
         success = 1;

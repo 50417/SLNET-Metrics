@@ -33,7 +33,7 @@ classdef model_metric < handle
             obj.table_name = obj.cfg.table_name;
             obj.foreign_table_name = obj.cfg.foreign_table_name;
             
-            obj.blk_info = get_block_info(); % Only extracts block info of top lvl... TODO: Deprecate this
+            obj.blk_info = get_block_info(); % extracts block info of top lvl... 
             obj.lvl_info = obtain_non_supported_hierarchial_metrics();
             
             %Creates folder to extract zipped filed files in current
@@ -72,10 +72,10 @@ classdef model_metric < handle
             %Logging purpose
         %Credits: https://www.mathworks.com/matlabcentral/answers/1905-logging-in-a-matlab-script
         function WriteLog(obj,Data)
-            persistent FID
+            global FID % https://www.mathworks.com/help/matlab/ref/global.html %https://www.mathworks.com/help/matlab/ref/persistent.html Local to functions but values are persisted between calls.
             % Open the file
             if strcmp(Data, 'open')
-              FID = fopen('LogFile.txt', 'w');
+              FID = fopen(strcat('Model_Metric_LogFile',datestr(now, 'dd-mm-yy-HH:MM:SS'),'.txt'), 'w');
               if FID < 0
                  error('Cannot open file');
               end
@@ -108,12 +108,13 @@ classdef model_metric < handle
             ", CONSTRAINT FK FOREIGN KEY(FILE_ID) REFERENCES ", obj.foreign_table_name...
                  ,'(id) ,'...
                 ,'CONSTRAINT UPair  UNIQUE(FILE_ID, Model_Name) )');
-             obj.WriteLog(create_metric_table);
+            
             if obj.cfg.DROP_TABLES
                 obj.WriteLog(sprintf("Dropping %s",obj.table_name))
                 obj.drop_table();
                 obj.WriteLog(sprintf("Dropped %s",obj.table_name))
             end
+             obj.WriteLog(create_metric_table);
             exec(obj.conn,create_metric_table);
         end
         %Writes to database 
