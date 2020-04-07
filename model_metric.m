@@ -77,7 +77,7 @@ classdef model_metric < handle
             global FID % https://www.mathworks.com/help/matlab/ref/global.html %https://www.mathworks.com/help/matlab/ref/persistent.html Local to functions but values are persisted between calls.
             % Open the file
             if strcmp(Data, 'open')
-              FID = fopen(strcat('Model_Metric_LogFile',datestr(now, 'dd-mm-yy-HH:MM:SS'),'.txt'), 'w');
+              FID = fopen(strcat('Model_Metric_LogFile',datestr(now, 'dd-mm-yy-HH-MM-SS'),'.txt'), 'w');
               if FID < 0
                  error('Cannot open file');
               end
