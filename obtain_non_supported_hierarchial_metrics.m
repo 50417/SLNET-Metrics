@@ -268,7 +268,7 @@ methods
         end
         
         
-    function [total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count,sfun_reused_key_val,blk_type_count] = populate_hierarchy_info(obj,file_name, mdl_name)
+    function [total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = populate_hierarchy_info(obj,file_name, mdl_name)
         obj.max_depth = 1;
        
         
@@ -290,9 +290,8 @@ methods
         sfun_val_str='';% variable that has sfunction with its count separate by comma, FORMAT: ,sfunname_count, 
         sfun_key = obj.sfun_reuse_map.keys();
         for K = 1 :length(sfun_key)
-            if(obj.sfun_reuse_map.get(sfun_key{K})>1)
+
                 sfun_val_str = strcat(sfun_val_str,',',sfun_key{K},'_',int2str(obj.sfun_reuse_map.get(sfun_key{K})));
-            end       
         end
         
         mdlref_val_str='';% variable that has mdlref with its count separate by comma, FORMAT: ,mdl_ref_count, 
