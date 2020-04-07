@@ -9,7 +9,7 @@ classdef model_metric_cfg < handle
         % NOTE : Constant properties val cant be obtained using get methods  
         
         %  Simulink models Zip files  directory to be analyzed
-     %directory where the Simulink projects(in zip format) are stored 
+       %directory where the Simulink projects(in zip format) are stored 
        %source_dir = [ filesep 'home' filesep 'sls6964xx' filesep 'Desktop' filesep 'UtilityProgramNConfigurationFile' filesep  'TestCollectingSimulinkModels' filesep  'dir_to_download'] 
        %source_dir = [filesep 'home' filesep 'sls6964xx' filesep 'Downloads' filesep 'SLNet_v1' filesep  'SLNET_GitHub']
        source_dir = ['C:' filesep 'Users' filesep 'sls6964xx' filesep 'Desktop' filesep 'SLNet_v1' filesep 'SLNET_GitHub']
@@ -18,7 +18,7 @@ classdef model_metric_cfg < handle
        %directory where the sqlite database which contains metadata tables
        %are
         %dbfile = [filesep 'home' filesep 'sls6964xx' filesep 'Desktop' filesep 'UtilityProgramNConfigurationFile' filesep 'TestCollectingSimulinkModels'  filesep 'xyz.sqlite']
-        dbfile = ['C:' filesep 'Users' filesep 'sls6964xx' filesep 'Desktop' filesep 'SLNet_v1' filesep  'slnet_v1.sqlite']
+        dbfile = ['C:' filesep 'Users' filesep 'sls6964xx' filesep 'Desktop' filesep 'SLNet_v1' filesep  'slnet_v1_git.sqlite'] % Has github metrics completed.
         %dbfile = [filesep 'home' filesep 'sls6964xx' filesep 'Downloads' filesep 'SLNet_v1'   filesep 'slnet_v1.sqlite']
         
         %New/Existing table Where Simulink model metrics(Block_Count) will be stored
@@ -34,7 +34,8 @@ classdef model_metric_cfg < handle
         lvl_info_table_name;
         lvl_info_foreign_table_name;
 
-        
+        %DEBUG MODE: 
+        DROP_TABLES = false %drop all existing tables and calculates metrics from scratch 
         
         %optional
         tmp_unzipped_dir = ''; %Stores UnZipped Files in this directory % Defaults to  current directory with folder tmp/

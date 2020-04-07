@@ -109,8 +109,11 @@ classdef model_metric < handle
                  ,'(id) ,'...
                 ,'CONSTRAINT UPair  UNIQUE(FILE_ID, Model_Name) )');
              obj.WriteLog(create_metric_table);
-          
-           % obj.drop_table();
+            if obj.cfg.DROP_TABLES
+                obj.WriteLog(sprintf("Dropping %s",obj.table_name))
+                obj.drop_table();
+                obj.WriteLog(sprintf("Dropped %s",obj.table_name))
+            end
             exec(obj.conn,create_metric_table);
         end
         %Writes to database 
@@ -476,9 +479,12 @@ classdef model_metric < handle
                                 obj.WriteLog(['ERROR MSG : ' ME.message]);
                 end
                                 disp(' ')
+                            
                 processed_file_count=processed_file_count+1;
 
            end
+           obj.WriteLog("Cleaning up Tmp files")
+           obj.cleanup()
    
         end
      
@@ -585,6 +591,16 @@ classdef model_metric < handle
           
                 
        
+        end
+        
+        %to clean up files MATLAB generates while processing
+        function cleanup(obj)
+            extensions = {'slxc','c','mat',...
+               'tlc','mexw64'}; % cell arrAY.. Add file extesiion 
+            for i = 1 :  length(extensions)
+                delete strcat("*.",extensions(1));
+            end
+            
         end
         
         %Extract Cyclomatic complexity %MOdels needs to be compilable 

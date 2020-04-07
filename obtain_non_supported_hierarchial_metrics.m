@@ -63,7 +63,11 @@ methods
         
             % obj.WriteLog(create_metric_table);
           
-            obj.drop_table(); % 
+            if obj.cfg.DROP_TABLES
+                obj.WriteLog(sprintf("Dropping %s",obj.table_name))
+                obj.drop_table();
+                obj.WriteLog(sprintf("Dropped %s",obj.table_name))
+            end
             exec(obj.conn,create_metric_table);
         end
               
