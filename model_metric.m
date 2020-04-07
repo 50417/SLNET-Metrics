@@ -22,6 +22,8 @@ classdef model_metric < handle
             'NUMERIC','NUMERIC','Boolean','NUMERIC','NUMERIC','NUMERIC','NUMERIC','VARCHAR','VARCHAR','VARCHAR'...
             ,'NUMERIC','NUMERIC','NUMERIC','NUMERIC','VARCHAR'...
             ,'VARCHAR','NUMERIC'};
+        
+        logfilename = strcat('Model_Metric_LogFile',datestr(now, 'dd-mm-yy-HH-MM-SS'),'.txt')
 
        
     end
@@ -75,9 +77,12 @@ classdef model_metric < handle
         %Credits: https://www.mathworks.com/matlabcentral/answers/1905-logging-in-a-matlab-script
         function WriteLog(obj,Data)
             global FID % https://www.mathworks.com/help/matlab/ref/global.html %https://www.mathworks.com/help/matlab/ref/persistent.html Local to functions but values are persisted between calls.
+            if isempty(FID) & ~strcmp(Data,'open')
+                 FID = fopen(obj.logfilename, 'a+');
+            end
             % Open the file
             if strcmp(Data, 'open')
-              FID = fopen(strcat('Model_Metric_LogFile',datestr(now, 'dd-mm-yy-HH-MM-SS'),'.txt'), 'w');
+              FID = fopen(obj.logfilename, 'w');
               if FID < 0
                  error('Cannot open file');
               end
