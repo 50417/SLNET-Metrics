@@ -604,7 +604,7 @@ classdef model_metric < handle
             extensions = {'slxc','c','mat',...
                'tlc','mexw64'}; % cell arrAY.. Add file extesiion 
             for i = 1 :  length(extensions)
-                delete( strcat("*.",extensions(1)));
+                delete( strcat("*.",extensions(i)));
             end
             
         end
