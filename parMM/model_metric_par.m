@@ -408,10 +408,14 @@ classdef model_metric_par < handle
                                num_alge_loop = 0;
                                try                               
                                   %obj.WriteLog(sprintf('Checking if %s compiles?', model_name));
+                                  timeout = timer('TimerFcn',' com.mathworks.mde.cmdwin.CmdWinMLIF.getInstance().processKeyFromC(2,67,''C'')','StartDelay',120);
+                                    start(timeout);
                                    compiles = obj.does_model_compile(model_name);
-                                   
+                                    stop(timeout);
+                                    delete(timeout);
                                     obj.close_the_model(model_name);
                                catch ME
+                                   delete(timeout);
                                     %obj.WriteLog(sprintf('ERROR Compiling %s',model_name));                    
                                     %obj.WriteLog(['ERROR ID : ' ME.identifier]);
                                     %obj.WriteLog(['ERROR MSG : ' ME.message]);

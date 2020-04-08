@@ -24,9 +24,11 @@ classdef model_metric < handle
             ,'VARCHAR','NUMERIC'};
         
         logfilename = strcat('Model_Metric_LogFile',datestr(now, 'dd-mm-yy-HH-MM-SS'),'.txt')
-
+        
        
     end
+    
+    
     
     methods
         %Constructor
@@ -49,6 +51,7 @@ classdef model_metric < handle
                     mkdir(obj.cfg.tmp_unzipped_dir);
             end
             obj.connect_table();
+           
         end
         %Gets simulation time of the model based on the models
         %configuration. If the stopTime of the model is set to Inf, then it
@@ -211,12 +214,20 @@ classdef model_metric < handle
             num_alge_loop  = numel(alge_loops);            
         end
         
+
+       
         %Checks if a models compiles for not
         function compiles = does_model_compile(obj,model)
                 %eval(['mex /home/sls6964xx/Desktop/UtilityProgramNConfigurationFile/ModelMetricCollection/tmp/SDF-MATLAB-master/C/src/sfun_ndtable.cpp']);
-               eval([model, '([], [], [], ''compile'');'])
+               %'com.mathworks.mde.cmdwin.CmdWinMLIF.getInstance().processKeyFromC(2,67,''C'')'
+
+                %obj.timeout = timer('TimerFcn'," ME = MException('Timeout:TimeExceeded','Time Exceeded While Compiling');throw(ME);",'StartDelay',1);
+                %start(obj.timeout);
+                eval([model, '([], [], [], ''compile'');'])
                 obj.WriteLog([model ' compiled Successfully ' ]); 
-               
+                
+               % stop(obj.timeout);
+                %delete(obj.timeout);
                 compiles = 1;
         end
         
@@ -389,10 +400,16 @@ classdef model_metric < handle
                                num_alge_loop = 0;
                                try                               
                                   obj.WriteLog(sprintf('Checking if %s compiles?', model_name));
+                                   timeout = timer('TimerFcn',' com.mathworks.mde.cmdwin.CmdWinMLIF.getInstance().processKeyFromC(2,67,''C'')','StartDelay',120);
+                                    start(timeout);
                                    compiles = obj.does_model_compile(model_name);
-                                   
+                                    stop(timeout);
+                                    delete(timeout);
                                     obj.close_the_model(model_name);
                                catch ME
+                                    %stop(obj.timeout);
+                                    delete(timeout); 
+                                   
                                     obj.WriteLog(sprintf('ERROR Compiling %s',model_name));                    
                                     obj.WriteLog(['ERROR ID : ' ME.identifier]);
                                     obj.WriteLog(['ERROR MSG : ' ME.message]);
