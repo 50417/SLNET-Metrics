@@ -268,7 +268,7 @@ methods
         end
         
         
-    function [total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = populate_hierarchy_info(obj,file_name, mdl_name)
+    function [total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = populate_hierarchy_info(obj,file_name, mdl_name,hierar_File)
         obj.max_depth = 1;
        
         
@@ -277,10 +277,10 @@ methods
         %Writing To Database
         %obj.WriteLog(sprintf("Writing to %s",obj.table_name))
         for i = 1:obj.max_depth
-             %obj.WriteLog(sprintf("FileName = %d modelName = %s hierarchyLvl = %d BlockCount = %d ConnectionCount = %d HConnCount = %d ChildModelCount = %d ",...
-              %              file_name,mdl_name,i,...
-             %             obj.blk_count_this_levelMap.get(int2str(i)),obj.connectionsLevelMap.get(int2str(i)),obj.hconns_level_map.get(int2str(i))...
-             %            ,obj.childModelPerLevelMap.get(int2str(i))))
+             fprintf(hierar_File.Value,"%d, %s, %d, %d, %d ,%d , %d\n ",...
+                            file_name,mdl_name,i,...
+                          obj.blk_count_this_levelMap.get(int2str(i)),obj.connectionsLevelMap.get(int2str(i)),obj.hconns_level_map.get(int2str(i))...
+                         ,obj.childModelPerLevelMap.get(int2str(i)));
            
             %obj.write_to_database(file_name,mdl_name,i,...
              %             obj.blk_count_this_levelMap.get(int2str(i)),obj.connectionsLevelMap.get(int2str(i)),obj.hconns_level_map.get(int2str(i))...
@@ -306,8 +306,8 @@ methods
          sfun_reused_key_val= sfun_val_str; % list of s function used more than once
          blk_type_count = obj.blockTypeMap;
         
-         modelrefMap_reused_val = mdlref_val_str % list of mdlref used and its count
-         unique_mdl_ref_count = length(mdlref_key)
+         modelrefMap_reused_val = mdlref_val_str; % list of mdlref used and its count
+         unique_mdl_ref_count = length(mdlref_key);
       
     end
 end

@@ -263,12 +263,16 @@ classdef model_metric_par < handle
                     
             file_id_mdl_array = obj.get_database_content(); 
             folderPath = parallel.pool.Constant(@() tempname(pwd));
-            
+            metric_File = parallel.pool.Constant(@() fopen(strcat(tempname(pwd),"_metric"),'at'),@fclose);
+            hierar_File = parallel.pool.Constant(@() fopen(strcat( tempname(pwd),"_hierar"),'at'),@fclose);
+            blk_info_File = parallel.pool.Constant(@() fopen(strcat( tempname(pwd),"_blk_info"),'at'),@fclose);
            %processed_file_count = 1;
-           file_length = int8(size(list_of_zip_files,1))
+           file_length = int8(size(list_of_zip_files,1));
            spmd
-               mkdir(folderPath.Value)
-               disp(folderPath.Value)
+               mkdir(folderPath.Value);
+               disp(folderPath.Value);
+               disp(fopen(metric_File.Value));
+               disp(fopen(hierar_File.Value)); disp(fopen(blk_info_File.Value));
            end
         
            %Loop over each Zip File 
@@ -341,7 +345,8 @@ classdef model_metric_par < handle
 
                               
                                %obj.WriteLog(['Populating level wise | hierarchial info of ' model_name]);
-                               [total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = obj.lvl_info.populate_hierarchy_info(id, model_name);
+                               [total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = obj.lvl_info.populate_hierarchy_info(id, model_name,hierar_File);
+                               
                                %obj.WriteLog([' level wise Info Updated of' model_name]);
                                %obj.WriteLog(sprintf("Lines= %d Descendant count = %d NCS count=%d Unique S fun count=%d",...
                                %total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count));
@@ -350,7 +355,13 @@ classdef model_metric_par < handle
                                %[t,blk_type_count]=
                                %sldiagnostics(model_name,'CountBlocks');
                                %Only gives top level block types
-                               obj.blk_info.populate_block_info(id,model_name,blk_type_count);
+                                blk_type_keys = blk_type_count.keys();
+                               
+                                for K = 1 :length(blk_type_keys)
+                                    fprintf(blk_info_File.Value,'%d,%s,%s,%d\n',id,model_name,blk_type_keys{K},blk_type_count.get(blk_type_keys{K}));
+                                    %obj.write_to_database(file_name,mdl_name,blk_type_keys{K},blk_type_count.get(blk_type_keys{K}));
+                                end
+                               %obj.blk_info.populate_block_info(id,model_name,blk_type_count);
                                %obj.WriteLog([' Block Info Updated of' model_name]);
                               
                            
@@ -371,6 +382,13 @@ classdef model_metric_par < handle
                                    %obj.WriteLog(sprintf('%s is a library. Skipping calculating cyclomatic metric/compile check',model_name));
                                    obj.close_the_model(model_name);
                                    try
+                                   fprintf(metric_File.Value,'%d,%s,%d,%d,%d ,%d,%d,%d,%d,%d,%d, %d,%d,%d,%s,%s,%s, %d,%d,%d,%d, %s,%s,%d\n',id,char(m(end))...
+                                       ,1,schk_blk_count,blk_cnt,...
+                                       subsys_count,agg_subsys_count,depth,liblink_count,-1,-1 ...
+                                   ,-1,-1,-1,'N/A','N/A','N/A'...
+                                            ,-1,-1,-1,-1 ...
+                                            ,'N/A','N/A',-1);  
+                                  
                                    %obj.write_to_database(id,char(m(end)),1,schk_blk_count,blk_cnt,...
                                    %    subsys_count,agg_subsys_count,depth,liblink_count,-1,-1 ...
                                    %,-1,-1,-1,'N/A','N/A','N/A'...
@@ -459,7 +477,14 @@ classdef model_metric_par < handle
                                    
                                  
                                    
-                                   
+                                 fprintf(metric_File.Value,'%d,%s,%d,%d,%d ,%d,%d,%d,%d,%d,%d, %d,%d,%d,%s,%s,%s, %d,%d,%d,%d, %s,%s,%d\n',id,char(m(end)),...
+                                     0,schk_blk_count,blk_cnt,subsys_count,...
+                                           agg_subsys_count,depth,liblink_count,compiles,cyclo_complexity...
+                                            ,simulation_time,compile_time,num_alge_loop,target_hw,solver_type,sim_mode...
+                                           ,total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count...
+                                            ,sfun_reused_key_val...
+                                            ,modelrefMap_reused_val,unique_mdl_ref_count);  
+                                  
                                %end
                                %obj.WriteLog(sprintf("Writing to Database"));
                                %try
