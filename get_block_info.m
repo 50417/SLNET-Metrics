@@ -5,7 +5,7 @@ properties
     cfg;  
     conn;
     colnames = {'File_Name','Model_Name','BLK_TYPE','Count'};
-    coltypes = {'NUMERIC','VARCHAR','NUMERIC','NUMERIC'};
+    coltypes = {'NUMERIC','VARCHAR','VARCHAR','NUMERIC'};
 
     
 end
