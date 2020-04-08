@@ -277,7 +277,7 @@ methods
         %Writing To Database
         %obj.WriteLog(sprintf("Writing to %s",obj.table_name))
         for i = 1:obj.max_depth
-             fprintf(hierar_File.Value,"%d, %s, %d, %d, %d ,%d , %d\n ",...
+             fprintf(hierar_File.Value,'%d, %s, %d, %d, %d ,%d , %d\n',...
                             file_name,mdl_name,i,...
                           obj.blk_count_this_levelMap.get(int2str(i)),obj.connectionsLevelMap.get(int2str(i)),obj.hconns_level_map.get(int2str(i))...
                          ,obj.childModelPerLevelMap.get(int2str(i)));
@@ -291,13 +291,13 @@ methods
         sfun_key = obj.sfun_reuse_map.keys();
         for K = 1 :length(sfun_key)
 
-                sfun_val_str = strcat(sfun_val_str,',',sfun_key{K},'_',int2str(obj.sfun_reuse_map.get(sfun_key{K})));
+                sfun_val_str = strcat(sfun_val_str,'.',sfun_key{K},'_',int2str(obj.sfun_reuse_map.get(sfun_key{K})));
         end
         
         mdlref_val_str='';% variable that has mdlref with its count separate by comma, FORMAT: ,mdl_ref_count, 
         mdlref_key = obj.modelrefMap.keys();
         for K = 1 :length(mdlref_key)
-           mdlref_val_str = strcat(mdlref_val_str,',',mdlref_key{K},'_',int2str(obj.modelrefMap.get(mdlref_key{K})));          
+           mdlref_val_str = strcat(mdlref_val_str,'.',mdlref_key{K},'_',int2str(obj.modelrefMap.get(mdlref_key{K})));          
         end
         total_descendant_count = obj.descendants_count ;%Model Reference + subsystem Count 
          total_lines_cnt =   obj.total_lines_count; 

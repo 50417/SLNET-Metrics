@@ -522,9 +522,82 @@ classdef model_metric_par < handle
            end
            %obj.WriteLog("Cleaning up Tmp files")
            obj.cleanup()
+           obj.write_from_file_to_database()
    
         end
-     
+        
+        function write_from_file_to_database(obj)
+            [list_of_files] = dir(pwd); %gives struct with date, name, size info, https://www.mathworks.com/matlabcentral/answers/282562-what-is-the-difference-between-dir-and-ls
+            tf = ismember( {list_of_files.name}, {'.', '..'});
+            list_of_files(tf) = [];  %remove current and parent directory.
+           %Loop over each Zip File 
+           for cnt = 1 : size(list_of_files,1)
+              
+                    name =strtrim(char(list_of_files(cnt).name));
+                   
+                    if(endsWith(name,"_metric"))
+                        fid = fopen(name);
+                        tline = fgetl(fid);
+                        while ischar(tline)&& ~isempty(tline)
+                            tline_split=split(strtrim(tline),",");
+                            try
+                            obj.write_to_database(str2double(tline_split{1}),tline_split{2},str2double(tline_split{3}),...
+                                        str2double(tline_split{4}),str2double(tline_split{5}),str2double(tline_split{6}),...
+                                            str2double(tline_split{7}),str2double(tline_split{8}),str2double(tline_split{9}),...
+                                            str2double(tline_split{10}),str2double(tline_split{11}),str2double(tline_split{12}),...
+                                           str2double(tline_split{13}),str2double(tline_split{14}),tline_split{15},...
+                                           tline_split{16},tline_split{17},str2double(tline_split{18}),...
+                                           str2double(tline_split{19}),str2double(tline_split{20}),str2double(tline_split{21}),...
+                                           tline_split{22},tline_split{23},str2double(tline_split{24})...
+                                           );%blk_cnt);
+                            catch ME
+                                ME
+                                tline = fgetl(fid);
+                                continue
+                            end
+
+                            tline = fgetl(fid);
+                        end
+                        
+                    elseif(endsWith(name,"_hierar"))
+                        fid = fopen(name);
+                        tline = fgetl(fid);
+                        while ischar(tline) && ~isempty(tline)
+                           tline_split=split(strtrim(tline),",");
+                            try
+                            obj.lvl_info.write_to_database(str2double(tline_split{1}),tline_split{2},str2double(tline_split{3}),str2double(tline_split{4}),...
+                                            str2double(tline_split{5}),str2double(tline_split{6}),...
+                                            str2double(tline_split{7}));%blk_cnt);
+                            catch ME
+                                ME
+                                tline = fgetl(fid);
+                                continue
+                            end
+                            tline = fgetl(fid);
+                        end
+                            
+                    elseif endsWith(name,"_blk_info")
+                        fid = fopen(name);
+                        tline = fgetl(fid);
+                        while ischar(tline)&& ~isempty(tline)
+                            tline_split=split(strtrim(tline),",");
+                            try
+                            obj.blk_info.write_to_database(str2double(tline_split{1}),tline_split{2},tline_split{3},str2double(tline_split{4}));%blk_cnt);
+                            catch ME
+                                ME
+                               tline = fgetl(fid);
+                                continue
+                            end
+                             tline = fgetl(fid);
+                        end
+                        
+                    end
+                    
+            
+                   
+                    
+           end
+        end
         
 
         function x = get_total_block_count(~,model)
