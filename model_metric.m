@@ -34,8 +34,9 @@ classdef model_metric < handle
         %Constructor
         function obj = model_metric()
             warning on verbose
-            obj.WriteLog("open");
             obj.cfg = model_metric_cfg();
+            obj.WriteLog("open");
+            
             obj.table_name = obj.cfg.table_name;
             obj.foreign_table_name = obj.cfg.foreign_table_name;
             
@@ -81,11 +82,13 @@ classdef model_metric < handle
         function WriteLog(obj,Data)
             global FID % https://www.mathworks.com/help/matlab/ref/global.html %https://www.mathworks.com/help/matlab/ref/persistent.html Local to functions but values are persisted between calls.
             if isempty(FID) & ~strcmp(Data,'open')
-                 FID = fopen(obj.logfilename, 'a+');
+                
+                 FID = fopen(['logs' filesep obj.logfilename], 'a+');
             end
             % Open the file
             if strcmp(Data, 'open')
-              FID = fopen(obj.logfilename, 'w');
+                mkdir('logs');
+              FID = fopen(['logs' filesep obj.logfilename], 'w');
               if FID < 0
                  error('Cannot open file');
               end
@@ -96,7 +99,9 @@ classdef model_metric < handle
             end
             fprintf(FID, '%s: %s\n',datestr(now, 'dd/mm/yy-HH:MM:SS'), Data);
             % Write to the screen at the same time:
-            fprintf('%s: %s\n', datestr(now, 'dd/mm/yy-HH:MM:SS'), Data);
+            if obj.cfg.DEBUG
+                fprintf('%s: %s\n', datestr(now, 'dd/mm/yy-HH:MM:SS'), Data);
+            end
         end
         
         %concatenates file with source directory
@@ -174,10 +179,13 @@ classdef model_metric < handle
             %max(data)
         end
         
+
+        
         %Deletes content of obj.cfg.tmp_unzipped_dir such that next
         %project can be analyzed
         function delete_tmp_folder_content(obj,folder)
-             % Get a list of all files in the folder
+            %{
+            %Get a list of all files in the folder
             list = dir(folder);
             % Get a logical vector that tells which is a directory.
             dirFlags = [list.isdir];
@@ -203,6 +211,23 @@ classdef model_metric < handle
               obj.WriteLog(sprintf( 'Now deleting %s\n', full_file_name));
               delete(full_file_name);
             end
+            %}
+            fclose('all'); %Some files are opened by the models
+            if exist('slprj', 'dir')
+                rmdir('slprj','s');
+            end
+            if ispc
+                system(strcat('rmdir /S /Q ' ," ",folder));
+            elseif isunix
+                system(strcat('rmdir -p'," ",folder))
+            else 
+                 rmdir(folder,'s');%https://www.mathworks.com/matlabcentral/answers/21413-error-using-rmdir
+            end
+            obj.WriteLog("open");
+            %rehash;
+            %java.lang.Thread.sleep(5);
+            mkdir(folder);
+            obj.cleanup();
             
         end
         
@@ -241,7 +266,7 @@ classdef model_metric < handle
                close_system(model);
                bdclose(model);
             catch exception
-                exception
+               
                 obj.WriteLog(exception.message);
                 obj.WriteLog("Trying Again");
                 if (strcmp(exception.identifier ,'Simulink:Commands:InvModelDirty' ))
@@ -314,10 +339,10 @@ classdef model_metric < handle
                    
                   obj.WriteLog('Searching for slx and mdl file Files');
                   for cnt = 1: length(list_of_unzipped_files)
-                      path = char(list_of_unzipped_files(cnt));
+                      file_path = char(list_of_unzipped_files(cnt));
                       
-                       if endsWith(path,"slx") | endsWith(path,"mdl")
-                           m= split(path,filesep);
+                       if endsWith(file_path,"slx") | endsWith(file_path,"mdl")
+                           m= split(file_path,filesep);
                            
                            %m(end); log
                            %disp(list_of_unzipped_files(cnt));
@@ -505,6 +530,7 @@ classdef model_metric < handle
                     obj.WriteLog(sprintf('ERROR deleting'));                    
                                 obj.WriteLog(['ERROR ID : ' ME.identifier]);
                                 obj.WriteLog(['ERROR MSG : ' ME.message]);
+                                
                 end
                                 disp(' ')
                             
@@ -623,7 +649,7 @@ classdef model_metric < handle
         
         %to clean up files MATLAB generates while processing
         function cleanup(obj)
-            extensions = {'slxc','c','mat',...
+            extensions = {'slxc','c','mat','wav','bmp','log'...
                'tlc','mexw64'}; % cell arrAY.. Add file extesiion 
             for i = 1 :  length(extensions)
                 delete( strcat("*.",extensions(i)));

@@ -28,7 +28,9 @@ methods
           
             fprintf(FID, '%s: %s\n',datestr(now, 'dd/mm/yy-HH:MM:SS'), Data);
             % Write to the screen at the same time:
-            fprintf('%s: %s\n', datestr(now, 'dd/mm/yy-HH:MM:SS'), Data);
+           if obj.cfg.DEBUG
+                fprintf('%s: %s\n', datestr(now, 'dd/mm/yy-HH:MM:SS'), Data);
+            end
         end
     %creates Table to store model metrics 
         function connect_table(obj)

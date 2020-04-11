@@ -60,8 +60,9 @@ methods
             global FID %https://www.mathworks.com/help/matlab/ref/persistent.html Local to functions but values are persisted between calls.
            
             fprintf(FID, '%s: %s\n',datestr(now, 'dd/mm/yy-HH:MM:SS'), Data);
-            % Write to the screen at the same time:
-            fprintf('%s: %s\n', datestr(now, 'dd/mm/yy-HH:MM:SS'), Data);
+            if obj.cfg.DEBUG
+                fprintf('%s: %s\n', datestr(now, 'dd/mm/yy-HH:MM:SS'), Data);
+            end
         end
         
     %creates Table to store model metrics 
@@ -274,7 +275,7 @@ methods
         
     function [total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = populate_hierarchy_info(obj,file_name, mdl_name)
         obj.max_depth = 1;
-       obj.resetting_maps_variables()
+       obj.resetting_maps_variables();
         
         obj.obtain_hierarchy_metrics(file_name,mdl_name,1,false, false);
         
@@ -310,8 +311,8 @@ methods
          sfun_reused_key_val= sfun_val_str; % list of s function used more than once
          blk_type_count = obj.blockTypeMap;
         
-         modelrefMap_reused_val = mdlref_val_str % list of mdlref used and its count
-         unique_mdl_ref_count = length(mdlref_key)
+         modelrefMap_reused_val = mdlref_val_str; % list of mdlref used and its count
+         unique_mdl_ref_count = length(mdlref_key);
       
     end
 end
