@@ -274,14 +274,14 @@ methods
         
         
     function [total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = populate_hierarchy_info(obj,file_name, mdl_name)
-        obj.max_depth = 1;
+        obj.max_depth = 0;
        obj.resetting_maps_variables();
         
         obj.obtain_hierarchy_metrics(file_name,mdl_name,0,false, false);
         
         %Writing To Database
         obj.WriteLog(sprintf("Writing to %s",obj.table_name))
-        for i = 1:obj.max_depth
+        for i = 0:obj.max_depth
              obj.WriteLog(sprintf("FileName = %d modelName = %s hierarchyLvl = %d BlockCount = %d ConnectionCount = %d HConnCount = %d ChildModelCount = %d ",...
                             file_name,mdl_name,i,...
                           obj.blk_count_this_levelMap.get(int2str(i)),obj.connectionsLevelMap.get(int2str(i)),obj.hconns_level_map.get(int2str(i))...
@@ -294,7 +294,7 @@ methods
         end
         sfun_val_str='';% variable that has sfunction with its count separate by comma, FORMAT: ,sfunname_count, 
         sfun_key = obj.sfun_reuse_map.keys();
-        for K = 1 :length(sfun_key)
+        for K = 0 :length(sfun_key)
 
                 sfun_val_str = strcat(sfun_val_str,',',sfun_key{K},'_',int2str(obj.sfun_reuse_map.get(sfun_key{K})));
         end
