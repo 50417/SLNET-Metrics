@@ -277,7 +277,7 @@ methods
         obj.max_depth = 1;
        obj.resetting_maps_variables();
         
-        obj.obtain_hierarchy_metrics(file_name,mdl_name,1,false, false);
+        obj.obtain_hierarchy_metrics(file_name,mdl_name,0,false, false);
         
         %Writing To Database
         obj.WriteLog(sprintf("Writing to %s",obj.table_name))

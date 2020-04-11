@@ -88,7 +88,7 @@ classdef model_metric < handle
             % Open the file
             if strcmp(Data, 'open')
                 mkdir('logs');
-              FID = fopen(['logs' filesep obj.logfilename], 'w');
+              FID = fopen(['logs' filesep obj.logfilename], 'a+');
               if FID < 0
                  error('Cannot open file');
               end
