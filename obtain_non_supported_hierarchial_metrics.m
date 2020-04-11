@@ -34,7 +34,12 @@ methods
             obj.table_name = obj.cfg.lvl_info_table_name;
             obj.foreign_table_name = obj.cfg.lvl_info_foreign_table_name;
             
-            obj.blockTypeMap = mymap();;
+            obj.resetting_maps_variables();
+            
+            obj.connect_table();
+    end
+    function success =resetting_maps_variables(obj)
+            obj.blockTypeMap = mymap();
             obj.uniqueBlockMap = mymap();
             obj.childModelPerLevelMap = mymap();
             obj.modelrefMap = mymap();
@@ -43,11 +48,10 @@ methods
             obj.hconns_level_map = mymap();
             obj.blk_count_this_levelMap = mymap();
                             
-            obj.descendants_count = 0
-            obj.total_lines_count = 0
-            obj.ncs_count =0
-            
-            obj.connect_table();
+            obj.descendants_count = 0;
+            obj.total_lines_count = 0;
+            obj.ncs_count =0;
+            success = 1;
     end
     
          %Logging purpose
@@ -270,7 +274,7 @@ methods
         
     function [total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = populate_hierarchy_info(obj,file_name, mdl_name)
         obj.max_depth = 1;
-       
+       obj.resetting_maps_variables()
         
         obj.obtain_hierarchy_metrics(file_name,mdl_name,1,false, false);
         

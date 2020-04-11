@@ -19,9 +19,9 @@ properties
         hconns_level_map;
         blk_count_this_levelMap;
         
-        descendants_count = 0
-        total_lines_count = 0 % number of connections including hidden lines
-        ncs_count =0
+        descendants_count;%
+        total_lines_count ;% number of connections including hidden lines
+        ncs_count;%
         
         
 end
@@ -34,6 +34,11 @@ methods
             obj.table_name = obj.cfg.lvl_info_table_name;
             obj.foreign_table_name = obj.cfg.lvl_info_foreign_table_name;
             
+            obj.resetting_maps_variables()
+            
+            obj.connect_table();
+    end
+    function success =resetting_maps_variables(obj)
             obj.blockTypeMap = mymap();;
             obj.uniqueBlockMap = mymap();
             obj.childModelPerLevelMap = mymap();
@@ -46,10 +51,8 @@ methods
             obj.descendants_count = 0
             obj.total_lines_count = 0
             obj.ncs_count =0
-            
-            obj.connect_table();
+            success = 1
     end
-    
          %Logging purpose
         %Credits: https://www.mathworks.com/matlabcentral/answers/1905-logging-in-a-matlab-script
         function WriteLog(obj,Data)
@@ -271,8 +274,9 @@ methods
     function [total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = populate_hierarchy_info(obj,file_name, mdl_name,hierar_File)
         obj.max_depth = 1;
        
-        
+        obj.resetting_maps_variables()
         obj.obtain_hierarchy_metrics(file_name,mdl_name,1,false, false);
+        
         
         %Writing To Database
         %obj.WriteLog(sprintf("Writing to %s",obj.table_name))
