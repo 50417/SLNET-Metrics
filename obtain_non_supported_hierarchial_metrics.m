@@ -294,7 +294,7 @@ methods
         end
         sfun_val_str='';% variable that has sfunction with its count separate by comma, FORMAT: ,sfunname_count, 
         sfun_key = obj.sfun_reuse_map.keys();
-        for K = 0 :length(sfun_key)
+        for K = 1 :length(sfun_key)
 
                 sfun_val_str = strcat(sfun_val_str,',',sfun_key{K},'_',int2str(obj.sfun_reuse_map.get(sfun_key{K})));
         end
