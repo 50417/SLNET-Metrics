@@ -217,15 +217,16 @@ classdef model_metric < handle
                 rmdir('slprj','s');
             end
             if ispc
-                system(strcat('rmdir /S /Q ' ," ",folder));
+                rmdir('tmp','s');
+                %system(strcat('rmdir /S /Q ' ," ",folder));
             elseif isunix
                 system(strcat('rmdir -p'," ",folder))
             else 
                  rmdir(folder,'s');%https://www.mathworks.com/matlabcentral/answers/21413-error-using-rmdir
             end
             obj.WriteLog("open");
-            %rehash;
-            %java.lang.Thread.sleep(5);
+            rehash;
+            java.lang.Thread.sleep(5);
             mkdir(folder);
             obj.cleanup();
             
