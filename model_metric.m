@@ -395,7 +395,7 @@ classdef model_metric < handle
                                obj.WriteLog(sprintf(" id = %d Name = %s BlockCount= %d AGG_SubCount = %d SubSys_Count=%d Hierarchial_depth=%d LibLInkedCount=%d",...
                                    id,char(m(end)),blk_cnt, agg_subsys_count,subsys_count,depth,liblink_count));
                            catch ME
-                               ME
+                             
                                obj.WriteLog(sprintf('ERROR Calculating non compiled metrics for  %s',model_name));                    
                                 obj.WriteLog(['ERROR ID : ' ME.identifier]);
                                 obj.WriteLog(['ERROR MSG : ' ME.message]);

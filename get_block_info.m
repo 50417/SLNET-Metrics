@@ -42,7 +42,7 @@ methods
                     obj.colnames(i), " ",obj.coltypes(i) ) ;
             end
            create_metric_table = strcat("create table IF NOT EXISTS ", obj.table_name ...
-            ,'( M_ID INTEGER primary key autoincrement ,', cols  ,",CONSTRAINT UPair (File_Name,Model_Name,BLK_TYPE), CONSTRAINT FK FOREIGN KEY(M_ID) REFERENCES ", obj.foreign_table_name...
+            ,'( M_ID INTEGER primary key autoincrement ,', cols  ,",CONSTRAINT UPair UNIQUE(File_Name,Model_Name,BLK_TYPE), CONSTRAINT FK FOREIGN KEY(M_ID) REFERENCES ", obj.foreign_table_name...
                  ,'(id))');
          
           
@@ -76,10 +76,18 @@ methods
     function success = populate_block_info(obj,file_name, mdl_name,blk_type_count)
         blk_type_keys = blk_type_count.keys();
         obj.WriteLog(sprintf("Writing to %s",obj.table_name))
+        try 
         for K = 1 :length(blk_type_keys)
             obj.WriteLog(sprintf("FileName = %d modelName = %s BlockType = %s BlockCount = %d ",file_name,mdl_name,blk_type_keys{K},blk_type_count.get(blk_type_keys{K})))
             obj.write_to_database(file_name,mdl_name,blk_type_keys{K},blk_type_count.get(blk_type_keys{K}));
         end
+         catch ME
+               
+           obj.WriteLog(sprintf('ERROR Inserting into database: Blk Info for %s',mdl_name));                    
+            obj.WriteLog(['ERROR ID : ' ME.identifier]);
+            obj.WriteLog(['ERROR MSG : ' ME.message]);
+           %rmpath(genpath(folder_path));
+       end
         success = 1;
  
     end

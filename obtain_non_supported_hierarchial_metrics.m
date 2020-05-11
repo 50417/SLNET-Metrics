@@ -75,7 +75,7 @@ methods
                     obj.colnames(i), " ",obj.coltypes(i) ) ;
             end
            create_metric_table = strcat("create table IF NOT EXISTS ", obj.table_name ...
-            ,'( M_ID INTEGER primary key autoincrement ,', cols  ,",  CONSTRAINT UPair (File_Name,Model_Name,Depth),CONSTRAINT FK FOREIGN KEY(M_ID) REFERENCES ", obj.foreign_table_name...
+            ,'( M_ID INTEGER primary key autoincrement ,', cols  ,",  CONSTRAINT UPair UNIQUE(File_Name,Model_Name,Depth),CONSTRAINT FK FOREIGN KEY(M_ID) REFERENCES ", obj.foreign_table_name...
                  ,'(id))');
         
             
@@ -281,17 +281,25 @@ methods
         
         %Writing To Database
         obj.WriteLog(sprintf("Writing to %s",obj.table_name))
-        for i = 0:obj.max_depth
-             obj.WriteLog(sprintf("FileName = %d modelName = %s hierarchyLvl = %d BlockCount = %d ConnectionCount = %d HConnCount = %d ChildModelCount = %d ",...
-                            file_name,mdl_name,i,...
-                          obj.blk_count_this_levelMap.get(int2str(i)),obj.connectionsLevelMap.get(int2str(i)),obj.hconns_level_map.get(int2str(i))...
-                         ,obj.childModelPerLevelMap.get(int2str(i))))
-           
-            obj.write_to_database(file_name,mdl_name,i,...
-                          obj.blk_count_this_levelMap.get(int2str(i)),obj.connectionsLevelMap.get(int2str(i)),obj.hconns_level_map.get(int2str(i))...
-                         ,obj.childModelPerLevelMap.get(int2str(i))); %WARNING childCount_onthisLevel: shouldn't we do this only when blk_count_this_level inside it>0?
- 
-        end
+        try
+            for i = 0:obj.max_depth
+                 obj.WriteLog(sprintf("FileName = %d modelName = %s hierarchyLvl = %d BlockCount = %d ConnectionCount = %d HConnCount = %d ChildModelCount = %d ",...
+                                file_name,mdl_name,i,...
+                              obj.blk_count_this_levelMap.get(int2str(i)),obj.connectionsLevelMap.get(int2str(i)),obj.hconns_level_map.get(int2str(i))...
+                             ,obj.childModelPerLevelMap.get(int2str(i))))
+
+                obj.write_to_database(file_name,mdl_name,i,...
+                              obj.blk_count_this_levelMap.get(int2str(i)),obj.connectionsLevelMap.get(int2str(i)),obj.hconns_level_map.get(int2str(i))...
+                             ,obj.childModelPerLevelMap.get(int2str(i))); %WARNING childCount_onthisLevel: shouldn't we do this only when blk_count_this_level inside it>0?
+
+            end
+         catch ME
+               
+           obj.WriteLog(sprintf("ERROR Inserting into database Hierar Info for  %s",mdl_name));                    
+            obj.WriteLog(['ERROR ID : ' ME.identifier]);
+            obj.WriteLog(['ERROR MSG : ' ME.message]);
+           %rmpath(genpath(folder_path));
+       end
         sfun_val_str='';% variable that has sfunction with its count separate by comma, FORMAT: ,sfunname_count, 
         sfun_key = obj.sfun_reuse_map.keys();
         for K = 1 :length(sfun_key)
