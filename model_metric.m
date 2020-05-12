@@ -321,14 +321,17 @@ classdef model_metric < handle
                     %compiles in windows only MATLAB 2018b MATLAB 2019b
                    %id == 67689 cant find count becuase referenced model has
                    %protected component.
-                   %id == 152409754 hangs because requires user input
-                   %id == 152409754  testing
+                   %id == 152409754 hangs because requires select folder for installation input
+                
                    %id ===24437619 %suspious
+                   %id == 25870564 no license | Not in SLNet 
+                   % id==45571425 No license | NOt in SLNet
+                   % Cocoteam/benchmark
                    %id == 73878  % Requires user input
                    %id ==722 % crashes on Windowns Matlab 2019b in windows Only while SimCheck extract metrics 2018b not
                    %checked
                    %id==51243 Changes directory while analyzing. 
-                  if (id ==722 || id==70131 || id==51243 || id ==24437619 || id==198236388 || id == 124448612 || id==45571425 || id == 152409754 || id ==25870564) % potential crashes or hangs
+                  if ( id==51243 || id ==24437619 || id==198236388 || id == 124448612 || id == 152409754 ) % potential crashes or hangs
                        continue
                   end
              
