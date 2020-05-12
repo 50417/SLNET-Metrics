@@ -46,7 +46,7 @@ classdef model_metric < handle
             %Creates folder to extract zipped filed files in current
             %directory.
             if obj.cfg.tmp_unzipped_dir==""
-                obj.cfg.tmp_unzipped_dir = "tmp";
+                obj.cfg.tmp_unzipped_dir = "workdirtmp";
             end
             if(~exist(obj.cfg.tmp_unzipped_dir,'dir'))
                     mkdir(obj.cfg.tmp_unzipped_dir);
@@ -217,7 +217,7 @@ classdef model_metric < handle
                 rmdir('slprj','s');
             end
             if ispc
-                rmdir('tmp','s');
+                rmdir(obj.cfg.tmp_unzipped_dir,'s');
                 %system(strcat('rmdir /S /Q ' ," ",folder));
             elseif isunix
                 system(strcat('rmdir -p'," ",folder))
@@ -317,13 +317,18 @@ classdef model_metric < handle
                     tmp_var = strrep(name,'.zip',''); 
                     id = str2num(tmp_var);
          
-                    %id==70131 || kr_billiards_debug crashes MATLAB when compiling 
+                    %id==70131 || kr_billiards_debug crashes MATLAB when
+                    %compiles in windows only MATLAB 2018b MATLAB 2019b
                    %id == 67689 cant find count becuase referenced model has
                    %protected component.
                    %id == 152409754 hangs because requires user input
                    %id == 152409754  testing
                    %id ===24437619 %suspious
-                  if (id ==24437619 || id==198236388 || id == 124448612 || id==45571425 || id == 152409754 || id ==25870564) % potential crashes or hangs
+                   %id == 73878  % Requires user input
+                   %id ==722 % crashes on Windowns Matlab 2019b in windows Only while SimCheck extract metrics 2018b not
+                   %checked
+                   %id==51243 Changes directory while analyzing. 
+                  if (id ==722 || id==70131 || id==51243 || id ==24437619 || id==198236388 || id == 124448612 || id==45571425 || id == 152409754 || id ==25870564) % potential crashes or hangs
                        continue
                   end
              
