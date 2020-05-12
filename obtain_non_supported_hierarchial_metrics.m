@@ -4,7 +4,7 @@ properties
     foreign_table_name;
     cfg;  
     conn;
-    colnames = {'File_Name','Model_Name','Depth','Block_count','Conn_count_no_hidden','Conn_count_hidden_only','Child_model_count'};
+    colnames = {'File_id','Model_Name','Depth','Block_count','Conn_count_no_hidden','Conn_count_hidden_only','Child_model_count'};
     coltypes = {'NUMERIC','VARCHAR','NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC'};
     blk_count;
     
@@ -75,7 +75,7 @@ methods
                     obj.colnames(i), " ",obj.coltypes(i) ) ;
             end
            create_metric_table = strcat("create table IF NOT EXISTS ", obj.table_name ...
-            ,'( M_ID INTEGER primary key autoincrement ,', cols  ,",  CONSTRAINT UPair UNIQUE(File_Name,Model_Name,Depth),CONSTRAINT FK FOREIGN KEY(M_ID) REFERENCES ", obj.foreign_table_name...
+            ,'( M_ID INTEGER primary key autoincrement ,', cols  ,",  CONSTRAINT UPair UNIQUE(File_id,Model_Name,Depth),CONSTRAINT FK FOREIGN KEY(File_id) REFERENCES ", obj.foreign_table_name...
                  ,'(id))');
         
             

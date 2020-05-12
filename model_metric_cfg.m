@@ -12,9 +12,9 @@ classdef model_metric_cfg < handle
        %directory where the Simulink projects(in zip format) are stored 
        %source_dir = [ filesep 'home' filesep 'sls6964xx' filesep 'Desktop' filesep 'UtilityProgramNConfigurationFile' filesep  'TestCollectingSimulinkModels' filesep  'dir_to_download'] 
        %source_dir = [filesep 'home' filesep 'sls6964xx' filesep 'Downloads' filesep 'SLNet_v1' filesep  'SLNET_GitHub']
-       source_dir = ['C:' filesep 'Users' filesep 'sls6964xx' filesep 'Desktop' filesep 'SLNet_v1' filesep 'SLNET_GitHub']
+       %source_dir = ['C:' filesep 'Users' filesep 'sls6964xx' filesep 'Desktop' filesep 'SLNet_v1' filesep 'SLNET_GitHub']
        %source_dir = ['C:' filesep 'Users' filesep 'sls6964xx' filesep 'Desktop' filesep 'SLNet_v1' filesep 'SLNET_MATLABCentral']
-       %source_dir = ['C:' filesep 'Users' filesep 'sls6964xx' filesep 'Desktop' filesep 'SLNet_v1' filesep 'TEST']
+       source_dir = ['C:' filesep 'Users' filesep 'sls6964xx' filesep 'Desktop' filesep 'SLNet_v1' filesep 'TEST']
        %directory where the sqlite database which contains metadata tables
        %are
         %dbfile = [filesep 'home' filesep 'sls6964xx' filesep 'Desktop' filesep 'UtilityProgramNConfigurationFile' filesep 'TestCollectingSimulinkModels'  filesep 'xyz.sqlite']
@@ -35,8 +35,8 @@ classdef model_metric_cfg < handle
         lvl_info_foreign_table_name;
 
         %DEBUG MODE: 
-        DROP_TABLES = true %drop all existing tables and calculates metrics from scratch 
-        DEBUG = false %debug mode
+        DROP_TABLES = false %drop all existing tables and calculates metrics from scratch 
+        DEBUG = true %debug mode % prints to the console if TRUE
         %optional
         tmp_unzipped_dir = ''; %Stores UnZipped Files in this directory % Defaults to  current directory with folder tmp/
         %unused right now
@@ -54,10 +54,10 @@ classdef model_metric_cfg < handle
             obj.foreign_table_name = strcat(obj.project_source,'_Projects'); 
 
             obj.blk_info_table_name = strcat(obj.project_source,'_Block_Info');
-            obj.blk_info_foreign_table_name = strcat(obj.project_source,'_Metric'); 
+            obj.blk_info_foreign_table_name = strcat(obj.project_source,'_Projects'); 
             
             obj.lvl_info_table_name = strcat(obj.project_source,'_Hierar_Info');
-           obj.lvl_info_foreign_table_name = strcat(obj.project_source,'_Metric');
+           obj.lvl_info_foreign_table_name = strcat(obj.project_source,'_Projects');
 
         end
     end
