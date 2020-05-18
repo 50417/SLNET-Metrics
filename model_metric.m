@@ -323,7 +323,7 @@ classdef model_metric < handle
                    %protected component.
                    %id == 152409754 hangs because requires select folder for installation input
                 
-                   %id ===24437619 %suspious
+                   %id ===24437619 %suspious56873326
                    %id == 25870564 no license | Not in SLNet 
                    % id==45571425 No license | NOt in SLNet
                    % Cocoteam/benchmark
@@ -385,7 +385,7 @@ classdef model_metric < handle
 
                               
                                obj.WriteLog(['Populating level wise | hierarchial info of ' model_name]);
-                               [total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = obj.lvl_info.populate_hierarchy_info(id, model_name);
+                               [total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = obj.lvl_info.populate_hierarchy_info(id, char(m(end)));
                                obj.WriteLog([' level wise Info Updated of' model_name]);
                                obj.WriteLog(sprintf("Lines= %d Descendant count = %d NCS count=%d Unique S fun count=%d",...
                                total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count));
@@ -394,7 +394,7 @@ classdef model_metric < handle
                                %[t,blk_type_count]=
                                %sldiagnostics(model_name,'CountBlocks');
                                %Only gives top level block types
-                               obj.blk_info.populate_block_info(id,model_name,blk_type_count);
+                               obj.blk_info.populate_block_info(id,char(m(end)),blk_type_count);
                                obj.WriteLog([' Block Info Updated of' model_name]);
                               
                            

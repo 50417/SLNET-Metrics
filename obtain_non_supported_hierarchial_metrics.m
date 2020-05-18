@@ -274,10 +274,12 @@ methods
         
         
     function [total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = populate_hierarchy_info(obj,file_name, mdl_name)
-        obj.max_depth = 0;
+       obj.max_depth = 0;
        obj.resetting_maps_variables();
+       model_name = strrep(mdl_name,'.slx','');
+       model_name = strrep(model_name,'.mdl','');
         
-        obj.obtain_hierarchy_metrics(file_name,mdl_name,0,false, false);
+        obj.obtain_hierarchy_metrics(file_name,model_name,0,false, false);
         
         %Writing To Database
         obj.WriteLog(sprintf("Writing to %s",obj.table_name))
