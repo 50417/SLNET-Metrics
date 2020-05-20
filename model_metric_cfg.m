@@ -15,12 +15,20 @@ classdef model_metric_cfg < handle
        %source_dir = ['C:' filesep 'Users' filesep 'sls6964xx' filesep 'Desktop' filesep 'SLNet_v1' filesep 'SLNET_GitHub']
        %source_dir = ['C:' filesep 'Users' filesep 'sls6964xx' filesep 'Desktop' filesep 'SLNet_v1' filesep 'SLNET_MATLABCentral']
        source_dir = ['C:' filesep 'Users' filesep 'sls6964xx' filesep 'Desktop' filesep 'SLNet_v1' filesep 'TEST']
+
+       %source_dir = [filesep 'home' filesep 'sls6964xx' filesep 'Downloads' filesep 'SLNet_v1_overlapped'  filesep 'Test']
+       %source_dir = [filesep 'home' filesep 'sls6964xx' filesep 'Downloads' filesep 'SLNet_v1_overlapped'  filesep 'SLNET_MATLABCentral']
+       %source_dir = [filesep 'home' filesep 'sls6964xx' filesep 'Downloads' filesep 'SLNet_v1'  filesep 'SLNET_MATLABCentral']
+       
        %directory where the sqlite database which contains metadata tables
        %are
         %dbfile = [filesep 'home' filesep 'sls6964xx' filesep 'Desktop' filesep 'UtilityProgramNConfigurationFile' filesep 'TestCollectingSimulinkModels'  filesep 'xyz.sqlite']
         dbfile = ['C:' filesep 'Users' filesep 'sls6964xx' filesep 'Desktop' filesep 'SLNet_v1' filesep  'slnet_v1_2.sqlite'] % Has github metrics completed.
         %dbfile = [filesep 'home' filesep 'sls6964xx' filesep 'Downloads' filesep 'SLNet_v1'   filesep 'slnet_v1.sqlite']
         
+        %dbfile = ['C:' filesep 'Users' filesep 'sls6964xx' filesep 'Desktop' filesep 'SLNet_v1' filesep  'slnet_v1_git.sqlite'] % Has github metrics completed.
+        %dbfile = [filesep 'home' filesep 'sls6964xx' filesep 'Downloads' filesep 'SLNet_v1_overlapped'   filesep 'slnet_v1_hierarchyfix.sqlite']
+        %dbfile = [filesep 'home' filesep 'sls6964xx' filesep 'Downloads' filesep 'SLNet_v1_overlapped'   filesep 'slnet_v1.sqlite']
         %New/Existing table Where Simulink model metrics(Block_Count) will be stored
         table_name;
    
@@ -33,6 +41,9 @@ classdef model_metric_cfg < handle
         
         lvl_info_table_name;
         lvl_info_foreign_table_name;
+        
+        subsys_info_table_name;
+        subsys_info_foreign_table_name
 
         %DEBUG MODE: 
         DROP_TABLES = true %drop all existing tables and calculates metrics from scratch 
@@ -58,6 +69,9 @@ classdef model_metric_cfg < handle
             
             obj.lvl_info_table_name = strcat(obj.project_source,'_Hierar_Info');
            obj.lvl_info_foreign_table_name = strcat(obj.project_source,'_Projects');
+           
+           obj.subsys_info_table_name = strcat(obj.project_source,'_Subsys_Info');
+           obj.subsys_info_foreign_table_name = strcat(obj.project_source,'_Projects');
 
         end
     end

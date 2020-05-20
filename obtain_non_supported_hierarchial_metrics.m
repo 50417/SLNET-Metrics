@@ -8,6 +8,8 @@ properties
     coltypes = {'NUMERIC','VARCHAR','NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC'};
     blk_count;
     
+    subsys_info; 
+    
     max_depth;%keeping track of maximum depth to insert into database
     
         blockTypeMap;
@@ -33,6 +35,7 @@ methods
             obj.cfg = model_metric_cfg();
             obj.table_name = obj.cfg.lvl_info_table_name;
             obj.foreign_table_name = obj.cfg.lvl_info_foreign_table_name;
+            obj.subsys_info = subsystem_info();
             
             obj.resetting_maps_variables();
             
@@ -105,186 +108,208 @@ methods
             output_bol= 1;
         end
         
-    %reimplementation of SLforge recursive function to calculate metrics not supported by API
-        function blk_count_this_level = obtain_hierarchy_metrics(obj,file_name, model,depth,isModelReference, is_second_time)
-            if  obj.max_depth < depth
-                obj.max_depth = depth;
+        function [blk_lst_this_lvl,root_blk] = list_of_blocks_in_this_lvl(obj,all_blocks_in_every_lvl,dpth)
+            blk_lst_this_lvl = {};
+            root_blk = {};
+            for i=1:size(all_blocks_in_every_lvl)
+               
+                %https://www.mathworks.com/help/matlab/ref/cellfun.html
+                num_of_bslash = cellfun('length',regexp(all_blocks_in_every_lvl(i),'/')) ;
+                if num_of_bslash == dpth
+                    blk_lst_this_lvl(end+1,1) = all_blocks_in_every_lvl(i);
+                elseif num_of_bslash == dpth-1 
+                    root_blk(end+1,1) = all_blocks_in_every_lvl(i);
+                end
             end
+        end
+        
+    %reimplementation of SLforge/Curated corpus recursive function to iterative one to calculate metrics not supported by API
+        function blk_count_this_level = obtain_hierarchy_metrics(obj, model,file_name,mdl_name)
+            all_blocks_in_every_lvl = find_system(model,'SearchDepth',obj.max_depth,'LookUnderMasks', 'all', 'FollowLinks','off');
+            
+            for depth = 1:obj.max_depth
+                blk_count_this_level = 0; 
+                childCount_onthisLevel = 0;%Child models are blocks which are model references and Subsystem (Child Representing blocks)
+                subsystem_count = 0; % subsystem count in this level (subset of childmodels) (NCS)
+                count_sfunctions = 0;
+                
+                
+                %Separating the blocks that is in current level from the full list and also return the root model separately. 
+                [blk_lst_this_lvl,root_blk] = obj.list_of_blocks_in_this_lvl(all_blocks_in_every_lvl,depth);
+                
+                
+                
+                % slb = slblocks_light(0); TODO Correlation 
+            
+                hidden_lines = 0;
+                hidden_block_type = 'From'; % Earlier Implementation counts hidden line/connections as any line coming from FROM blocktype
+                                            %hidden line is then added to
+                                            %full line count on the level.
+                                            %which is incorrect based on
+                                            %this video https://www.youtube.com/watch?v=Uh7cYDo1vfU
+                
+                [blockCount,~] =size(blk_lst_this_lvl);   
+                for i=1:blockCount
+                    currentBlock = blk_lst_this_lvl(i);
+
+                    if ~ strcmp(currentBlock, model) 
+                        
+                        blockType = get_param(currentBlock, 'blocktype');
+                        obj.blockTypeMap.inc(blockType{1,1});
+                
+                        %TODO
+                        %libname = obj.get_lib(blockType{1, 1});
+
+                        %if ~ is_second_time
+                         %   obj.libcount_single_model.inc(libname);
+                        %    obj.uniqueBlockMap.inc(blockType{1,1});
+                        %end
+
+                        if strcmp(blockType,'SubSystem') || strcmp(blockType,'ModelReference')
+                            % child model found
+
+                            if strcmp(blockType,'ModelReference')
+                                childCount_onthisLevel=childCount_onthisLevel+1;
+
+                                modelName = get_param(currentBlock,'ModelName');
+                                %is_model_reused = obj.modelrefMap.contains(modelName);
+                                obj.modelrefMap.inc(modelName{1,1});
+
+                             
+                            else % block is subsystem Subsystem
+                           
+                                [inner_count,~]  = size(find_system(currentBlock,'SearchDepth',1,'LookUnderMasks', 'all', 'FollowLinks','off'));
+                                if inner_count-1 > 0%inner_count-1 to skip the root model
+                                    % There are some subsystems which are not
+                                    % actually subsystems, they have zero
+                                    % blocks. Also, masked ones won't show any
+                                    % underlying implementation
+                                    %Writing to a database 
+                                    obj.WriteLog(sprintf("Populating Subsystem Info Table "))
+                                    obj.subsys_info.write_to_database(file_name,mdl_name,depth,currentBlock,inner_count-1);%inner_count-1 to skip the root model
+                                    childCount_onthisLevel=childCount_onthisLevel+1;
+                                    subsystem_count = subsystem_count + 1;
+                                end
+                            end
+                        elseif strcmp('S-Function', blockType) 
+                            % S-Function found
+          
+                                count_sfunctions = count_sfunctions + 1;
+                       
+                            sfun_name = char(get_param(currentBlock, 'FunctionName'));
+                            obj.sfun_reuse_map.inc(sfun_name);
+                        elseif strcmp(hidden_block_type, blockType) %
+                                hidden_lines = hidden_lines + 1;
+
+                        end
+
+                        blk_count_this_level = blk_count_this_level+1; % number of blocks in each level.
+                        obj.blk_count = obj.blk_count + 1; %Total number of blocks in the model.
+
+                        %TODO:
+                        %if analyze_complexity.CALCULATE_SCC
+                        %    slb.process_new_block(currentBlock);
+                        %end
+
+                    end
+                end
+                                       
+                 %TODO 
+                 %{
+                if analyze_complexity.CALCULATE_SCC
+                  fprintf('Get SCC for %s\n', char(model));
+                   con_com = simulator.get_connected_components(slb);
+                   fprintf('[ConComp] Got %d connected comps\n', con_com.len);
+
+                                obj.scc_count = obj.scc_count + con_com.len;
+                end
+
+              if analyze_complexity.CALCULATE_CYCLES
+                   fprintf('Computing Cycles...\n');
+                    obj.cycle_count = obj.cycle_count + getCountCycles(slb);
+              end
+
+                %}
+                 %Calculating number of lines /connections for this lvl
+                [rootCount,~] =size(root_blk);  
+                unique_lines = 0;
+                unique_line_map = mymap();
+                for i=1:rootCount
+                    lines = find_system(root_blk(i),'SearchDepth','1','FindAll','on', 'LookUnderMasks', 'all', 'FollowLinks','off', 'type','line');
+                    for l_i = 1:numel(lines)
+                        c_l = get(lines(l_i));
+                        c_l.SrcBlockHandle;
+                        c_l.DstBlockHandle;
+        %                 fprintf('[LINE] %s %f\n',  get_param(c_l.SrcBlockHandle, 'name'), lines(l_i));
+                        for d_i = 1:numel(c_l.DstBlockHandle)
+                            ulk = [num2str(c_l.SrcBlockHandle) '_' num2str(c_l.SrcPortHandle) '_' num2str(c_l.DstBlockHandle(d_i)) '_' num2str(c_l.DstPortHandle(d_i))];
+                            if ~ unique_line_map.contains(ulk)
+                                unique_line_map.put(ulk, 1);
+                                unique_lines = unique_lines + 1;
+                            end
+                        end
+
+                    end
+                end
+
+                mapKey = int2str(depth-1);% To make it consistent with the Simulink Check API Hierarchy Depth
+
+                if blk_count_this_level >0 %If this lvl of the subsystem or model reference contains blocks  
+    %                 fprintf('Found %d blocks\n', count);
+
+                    obj.blk_count_this_levelMap.insert_or_add(mapKey, blk_count_this_level);
+                    % If there are blocks, only then it makes sense to count
+                    % connections
+                    obj.connectionsLevelMap.insert_or_add(mapKey,unique_lines);
+                    obj.childModelPerLevelMap.insert_or_add(mapKey, childCount_onthisLevel); %WARNING shouldn't we do this only when count>0?
+                    obj.hconns_level_map.insert_or_add(mapKey,hidden_lines);
+
+                    obj.descendants_count = obj.descendants_count + childCount_onthisLevel; %Model Reference Count and Subsystem
+                    obj.total_lines_count = obj.total_lines_count + unique_lines; % + hidden_lines Removed as it may not be correct
+                    obj.ncs_count = obj.ncs_count + subsystem_count;
+
+                else
+                    assert(unique_lines == 0); % sanity check
+                end
+           
+            
+           
+            %}
+            end
+            
+            
+            %{
             if isModelReference
                 mdlRefName = get_param(model,'ModelName');
                 load_system(mdlRefName);
-                all_blocks = find_system(mdlRefName,'SearchDepth',1, 'LookUnderMasks', 'all', 'FollowLinks','on');
+                all_blocks = find_system(mdlRefName,'SearchDepth',1, 'LookUnderMasks', 'all', 'FollowLinks','off'); % changed from 'FollowLinks','on');
                 all_blocks = all_blocks(2:end); 
                 
-                lines = find_system(mdlRefName,'SearchDepth','1','FindAll','on', 'LookUnderMasks', 'all', 'FollowLinks','on', 'type','line');
+                lines = find_system(mdlRefName,'SearchDepth','1','FindAll','on', 'LookUnderMasks', 'all', 'FollowLinks','off', 'type','line');
 
             else
-                all_blocks = find_system(model,'SearchDepth',1, 'LookUnderMasks', 'all', 'FollowLinks','on');
-                lines = find_system(model,'SearchDepth','1','FindAll','on', 'LookUnderMasks', 'all', 'FollowLinks','on', 'type','line');
+                all_blocks = find_system(model,'SearchDepth',1, 'LookUnderMasks', 'all', 'FollowLinks','off');
+                lines = find_system(model,'SearchDepth','1','FindAll','on', 'LookUnderMasks', 'all', 'FollowLinks','off', 'type','line');
             end
-            
-            blk_count_this_level=0; 
-            childCount_onthisLevel=0;%Child models are blocks which are model references and Subsystem
-            subsystem_count = 0; % subsystem count in this level (subset of childmodels)
-            count_sfunctions = 0;
-            
-            [blockCount,~] =size(all_blocks);
-            
-           % slb = slblocks_light(0); TODO Correlation 
-            
-            hidden_lines = 0;
-            hidden_block_type = 'From';
-            
-            %skip the root model which always comes as the first model
-            for i=1:blockCount
-                currentBlock = all_blocks(i);
-                
-                if ~ strcmp(currentBlock, model) 
-                        blockType = get_param(currentBlock, 'blocktype');
-                    
-                    if ~ is_second_time
-                        obj.blockTypeMap.inc(blockType{1,1}); % TODO
-                    end
-                    %TODO
-                    %libname = obj.get_lib(blockType{1, 1});
-                    
-                    %if ~ is_second_time
-                     %   obj.libcount_single_model.inc(libname);
-                    %    obj.uniqueBlockMap.inc(blockType{1,1});
-                    %end
-                    
-                    if strcmp(blockType,'SubSystem') || strcmp(blockType,'ModelReference')
-                        % child model found
-                        
-                        if strcmp(blockType,'ModelReference')
-                            childCount_onthisLevel=childCount_onthisLevel+1;
-                            
-                            modelName = get_param(currentBlock,'ModelName');
-                            is_model_reused = obj.modelrefMap.contains(modelName);
-                            obj.modelrefMap.inc(modelName{1,1});
-                         
-                            %if ~ is_model_reused
-                                % Will not count the same referenced model
-                                % twice. % TODO since this is commented
-                                % out, pass this param to
-                                % obtain_hierarchy_metrics
-                                obj.obtain_hierarchy_metrics(file_name,currentBlock,depth+1,true, is_model_reused);
-                            %end
-                        else % block is subsystem Subsystem
-                            %TODO: Subsystem Reuse. 
-                            inner_count  = obj.obtain_hierarchy_metrics(file_name,currentBlock,depth+1,false, false);
-                            if inner_count > 0
-                                % There are some subsystems which are not
-                                % actually subsystems, they have zero
-                                % blocks. Also, masked ones won't show any
-                                % underlying implementation
-                                childCount_onthisLevel=childCount_onthisLevel+1;
-                                subsystem_count = subsystem_count + 1;
-                            end
-                        end
-                    elseif strcmp('S-Function', blockType) % TODO
-                        % S-Function found
-                        if ~ is_second_time
-                            count_sfunctions = count_sfunctions + 1;
-                        end
-                       
-                        sfun_name = char(get_param(currentBlock, 'FunctionName'));
-                        obj.sfun_reuse_map.inc(sfun_name);
-                    elseif strcmp(hidden_block_type, blockType) % TODO
-%                         if ~ is_second_time
-                            hidden_lines = hidden_lines + 1;
-%                         end    
-                    end
-                    
-                    blk_count_this_level=blk_count_this_level+1; % number of blocks in each level.
-                    obj.blk_count = obj.blk_count + 1; %Total number of blocks in the model.
-                    
-                    %TODO:
-                    %if analyze_complexity.CALCULATE_SCC
-                    %    slb.process_new_block(currentBlock);
-                    %end
-                    
-                end
-            end
-            
-%             fprintf('\n');
- %TODO           
-            %if analyze_complexity.CALCULATE_SCC
-             %   fprintf('Get SCC for %s\n', char(model));
-             %   con_com = simulator.get_connected_components(slb);
-             %   fprintf('[ConComp] Got %d connected comps\n', con_com.len);
-
-%                obj.scc_count = obj.scc_count + con_com.len;
- %           end
-            
-  %          if analyze_complexity.CALCULATE_CYCLES
-   %             fprintf('Computing Cycles...\n');
-    %            obj.cycle_count = obj.cycle_count + getCountCycles(slb);
-     %       end
-            
-            
-            
-%             fprintf('\tBlock Count: %d\n', blk_count_this_level);
-            
-            
-            unique_lines = 0;
-            
-            unique_line_map = mymap();
-          
-            for l_i = 1:numel(lines)
-                c_l = get(lines(l_i));
-                c_l.SrcBlockHandle;
-                c_l.DstBlockHandle;
-%                 fprintf('[LINE] %s %f\n',  get_param(c_l.SrcBlockHandle, 'name'), lines(l_i));
-                for d_i = 1:numel(c_l.DstBlockHandle)
-                    ulk = [num2str(c_l.SrcBlockHandle) '_' num2str(c_l.SrcPortHandle) '_' num2str(c_l.DstBlockHandle(d_i)) '_' num2str(c_l.DstPortHandle(d_i))];
-                    if ~ unique_line_map.contains(ulk)
-                        unique_line_map.put(ulk, 1);
-                        unique_lines = unique_lines + 1;
-                    end
-                end
-                
-            end
-            
-            mapKey = int2str(depth);
-            
-            if blk_count_this_level >0 %If this lvl of the subsystem or model reference contains blocks  
-%                 fprintf('Found %d blocks\n', count);
-                
-                obj.blk_count_this_levelMap.insert_or_add(mapKey, blk_count_this_level);
-                % If there are blocks, only then it makes sense to count
-                % connections
-                obj.connectionsLevelMap.insert_or_add(mapKey,unique_lines);
-                obj.childModelPerLevelMap.insert_or_add(mapKey, childCount_onthisLevel); %WARNING shouldn't we do this only when count>0?
-                obj.connectionsLevelMap.insert_or_add(mapKey,unique_lines);
-                obj.hconns_level_map.insert_or_add(mapKey,hidden_lines);
-                
-                obj.descendants_count = obj.descendants_count + childCount_onthisLevel; %Model Reference Count and Subsystem
-                obj.total_lines_count = obj.total_lines_count + hidden_lines + unique_lines;
-                obj.ncs_count = obj.ncs_count + subsystem_count;
-            
-            else
-                assert(unique_lines == 0); % sanity check
-            end
-           
-            
-           
-            
+            %}
+    
         end
         
         
-    function [total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = populate_hierarchy_info(obj,file_name, mdl_name)
-       obj.max_depth = 0;
+    function [total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = populate_hierarchy_info(obj,file_name, mdl_name,depth,schk_blk_count)
+       %this is because simulink check returns depth as 0,1,2 while
+       %find_system requires depth as 1,2,3
+       obj.max_depth = depth+1;
        obj.resetting_maps_variables();
        model_name = strrep(mdl_name,'.slx','');
        model_name = strrep(model_name,'.mdl','');
         
-        obj.obtain_hierarchy_metrics(file_name,model_name,0,false, false);
+        obj.obtain_hierarchy_metrics(model_name,file_name,mdl_name); % filename and mdl_name is to populate subsystem info table. 
         
         %Writing To Database
         obj.WriteLog(sprintf("Writing to %s",obj.table_name))
         try
-            for i = 0:obj.max_depth
+            for i = 0:obj.max_depth-1
                  obj.WriteLog(sprintf("FileName = %d modelName = %s hierarchyLvl = %d BlockCount = %d ConnectionCount = %d HConnCount = %d ChildModelCount = %d ",...
                                 file_name,mdl_name,i,...
                               obj.blk_count_this_levelMap.get(int2str(i)),obj.connectionsLevelMap.get(int2str(i)),obj.hconns_level_map.get(int2str(i))...

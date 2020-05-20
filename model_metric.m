@@ -378,14 +378,19 @@ classdef model_metric < handle
                            end
       
                             try
-                       
-                               obj.WriteLog(['Calculating Number of blocks of ' model_name]);
+                               %sLDIAGNOSTIC BLOCK COUNT .. BASED ON https://blogs.mathworks.com/simulink/2009/08/11/how-many-blocks-are-in-that-model/
+                               obj.WriteLog(['Calculating Number of blocks (BASED ON sLDIAGNOSTIC TOOL) of ' model_name]);
                                blk_cnt=obj.get_total_block_count(model_name);
-                               obj.WriteLog([' Number of blocks of' model_name ':' num2str( blk_cnt)]);
+                               obj.WriteLog([' Number of blocks(BASED ON sLDIAGNOSTIC TOOL) of' model_name ':' num2str( blk_cnt)]);
 
-                              
+                              obj.WriteLog(['Calculating  metrics  based on Simulink Check API of :' model_name]);
+                               [schk_blk_count,agg_subsys_count,subsys_count,depth,liblink_count]=(obj.extract_metrics(model_name));
+                               obj.WriteLog(sprintf(" id = %d Name = %s BlockCount= %d AGG_SubCount = %d SubSys_Count=%d Hierarchial_depth=%d LibLInkedCount=%d",...
+                                   id,char(m(end)),blk_cnt, agg_subsys_count,subsys_count,depth,liblink_count));
+                               
+                               
                                obj.WriteLog(['Populating level wise | hierarchial info of ' model_name]);
-                               [total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = obj.lvl_info.populate_hierarchy_info(id, char(m(end)));
+                               [total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = obj.lvl_info.populate_hierarchy_info(id, char(m(end)),depth,schk_blk_count);
                                obj.WriteLog([' level wise Info Updated of' model_name]);
                                obj.WriteLog(sprintf("Lines= %d Descendant count = %d NCS count=%d Unique S fun count=%d",...
                                total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count));
@@ -398,10 +403,7 @@ classdef model_metric < handle
                                obj.WriteLog([' Block Info Updated of' model_name]);
                               
                            
-                              obj.WriteLog(['Calculating other metrics of :' model_name]);
-                               [schk_blk_count,agg_subsys_count,subsys_count,depth,liblink_count]=(obj.extract_metrics(model_name));
-                               obj.WriteLog(sprintf(" id = %d Name = %s BlockCount= %d AGG_SubCount = %d SubSys_Count=%d Hierarchial_depth=%d LibLInkedCount=%d",...
-                                   id,char(m(end)),blk_cnt, agg_subsys_count,subsys_count,depth,liblink_count));
+                              
                            catch ME
                              
                                obj.WriteLog(sprintf('ERROR Calculating non compiled metrics for  %s',model_name));                    
