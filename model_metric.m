@@ -97,7 +97,11 @@ classdef model_metric < handle
               fclose(FID);
               FID = -1;
             end
-            fprintf(FID, '%s: %s\n',datestr(now, 'dd/mm/yy-HH:MM:SS'), Data);
+            try
+                fprintf(FID, '%s: %s\n',datestr(now, 'dd/mm/yy-HH:MM:SS'), Data);
+            catch ME
+                ME
+            end
             % Write to the screen at the same time:
             if obj.cfg.DEBUG
                 fprintf('%s: %s\n', datestr(now, 'dd/mm/yy-HH:MM:SS'), Data);
@@ -212,7 +216,9 @@ classdef model_metric < handle
               delete(full_file_name);
             end
             %}
-            fclose('all'); %Some files are opened by the models
+            %fclose('all'); %Some files are opened by the models
+            global FID;
+            arrayfun(@fclose, setdiff(fopen('all'), FID));
             if exist('slprj', 'dir')
                 rmdir('slprj','s');
             end
@@ -308,6 +314,9 @@ classdef model_metric < handle
            processed_file_count = 1;
            %Loop over each Zip File 
            for cnt = 1 : size(list_of_zip_files)
+              
+              
+
                      name =strtrim(char(list_of_zip_files(cnt).name));  
                     obj.get_full_path(name);
                     log = strcat("Processing #",  num2str(processed_file_count), " :File Id ",list_of_zip_files(cnt).name) ;
@@ -330,7 +339,8 @@ classdef model_metric < handle
                    %id ==722 % crashes on Windowns Matlab 2019b in windows Only while SimCheck extract metrics 2018b not
                    %checked
                    %id==51243 Changes directory while analyzing. 
-                  if ( id==51243 || id ==24437619 || id==198236388 || id == 124448612 || id == 152409754 ) % potential crashes or hangs
+                   %id == 51705 % Requires user input: Enter morse code. 
+                  if (id==70131 || id==51243 || id ==24437619 || id==198236388 || id == 124448612 || id == 152409754 ) % potential crashes or hangs
                        continue
                   end
              
