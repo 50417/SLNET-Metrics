@@ -308,7 +308,6 @@ classdef model_metric < handle
            processed_file_count = 1;
            %Loop over each Zip File 
            for cnt = 1 : size(list_of_zip_files)
-              
                      name =strtrim(char(list_of_zip_files(cnt).name));  
                     obj.get_full_path(name);
                     log = strcat("Processing #",  num2str(processed_file_count), " :File Id ",list_of_zip_files(cnt).name) ;
@@ -376,7 +375,11 @@ classdef model_metric < handle
                                 continue;
                                %rmpath(genpath(folder_path));
                            end
-      
+
+                           if ~isempty(sltest.harness.find(model_name,'SearchDepth',15))
+                                fprintf('File Id %d %s has test harness', id, char(m(end)) ) ;
+                            end
+                           
                             try
                                %sLDIAGNOSTIC BLOCK COUNT .. BASED ON https://blogs.mathworks.com/simulink/2009/08/11/how-many-blocks-are-in-that-model/
                                obj.WriteLog(['Calculating Number of blocks (BASED ON sLDIAGNOSTIC TOOL) of ' model_name]);
@@ -710,6 +713,26 @@ classdef model_metric < handle
                 
        
         end
+        
+
+        %gets File Ids and model name from table
+        function results = correlation_analysis(obj)
+            sqlquery = ['select CComplexity,Compile_time,ncs_cnt,Hierarchy_depth from ' obj.table_name ' where is_Lib =0  and compiles = 1 and CComplexity!=-1 order by CComplexity'];
+            results = fetch(obj.conn,sqlquery);
+            results = cellfun(@(x)double(x),results);
+            %metrics = cell2mat(results)
+            [rho,pval] = corrcoef(results);
+            for i = 2:4
+            [tau, kpal] = corr(results(:,1),results(:,i), 'type', 'Kendall', 'rows', 'pairwise');
+            
+            fprintf('%d %d \n',tau,kpal);
+            end
+            [tau, kpal] = corr(results, 'type', 'Kendall', 'rows', 'pairwise')
+            
+    
+        end
+        
+
     end
     
         
