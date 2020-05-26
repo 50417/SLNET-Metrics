@@ -21,10 +21,11 @@ properties
         hconns_level_map;
         blk_count_this_levelMap;
         
-        descendants_count = 0
-        total_lines_count = 0 % number of connections including hidden lines
-        ncs_count =0
+        descendants_count = 0;
+        total_lines_count = 0; % number of connections including hidden lines
+        ncs_count =0;
         
+        scc_count = 0;
         
 end
 methods
@@ -54,6 +55,8 @@ methods
             obj.descendants_count = 0;
             obj.total_lines_count = 0;
             obj.ncs_count =0;
+            
+            obj.scc_count= 0; 
             success = 1;
     end
     
@@ -139,7 +142,7 @@ methods
                 
                 
                 
-                % slb = slblocks_light(0); TODO Correlation 
+                slb = slblocks_light(0);
             
                 hidden_lines = 0;
                 hidden_block_type = 'From'; % Earlier Implementation counts hidden line/connections as any line coming from FROM blocktype
@@ -208,26 +211,28 @@ methods
 
                         %TODO:
                         %if analyze_complexity.CALCULATE_SCC
-                        %    slb.process_new_block(currentBlock);
+                            slb.process_new_block(currentBlock);
                         %end
 
                     end
                 end
                                        
-                 %TODO 
-                 %{
-                if analyze_complexity.CALCULATE_SCC
+                  
+                 
+                %if analyze_complexity.CALCULATE_SCC
                   fprintf('Get SCC for %s\n', char(model));
-                   con_com = simulator.get_connected_components(slb);
-                   fprintf('[ConComp] Got %d connected comps\n', con_com.len);
+                   con_com = get_connected_components(slb);
+                   %fprintf('[ConComp] Got %d connected comps\n', con_com.len);
 
-                                obj.scc_count = obj.scc_count + con_com.len;
-                end
-
-              if analyze_complexity.CALCULATE_CYCLES
-                   fprintf('Computing Cycles...\n');
-                    obj.cycle_count = obj.cycle_count + getCountCycles(slb);
-              end
+                   obj.scc_count = obj.scc_count + con_com.len;
+                %end
+                
+                %TODO
+              %if analyze_complexity.CALCULATE_CYCLES
+                   %fprintf('Computing Cycles...\n');
+                   %cycle_count = getCountCycles(slb)
+                   %obj.cycle_count = obj.cycle_count + cycle_count;
+              %end
 
                 %}
                  %Calculating number of lines /connections for this lvl
@@ -296,7 +301,7 @@ methods
         end
         
         
-    function [total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = populate_hierarchy_info(obj,file_name, mdl_name,depth,schk_blk_count)
+    function [total_lines_cnt,total_descendant_count,ncs_count,scc_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = populate_hierarchy_info(obj,file_name, mdl_name,depth,schk_blk_count)
        %this is because simulink check returns depth as 0,1,2 while
        %find_system requires depth as 1,2,3
        obj.max_depth = depth+1;
@@ -342,6 +347,7 @@ methods
         total_descendant_count = obj.descendants_count ;%Model Reference + subsystem Count
          total_lines_cnt =   obj.total_lines_count; 
          ncs_count = obj.ncs_count; % num of contained subsystem
+         scc_count = obj.scc_count;
          unique_sfun_count = length(sfun_key);
          sfun_reused_key_val= sfun_val_str; % list of s function used more than once
          blk_type_count = obj.blockTypeMap;
