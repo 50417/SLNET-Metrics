@@ -340,9 +340,14 @@ classdef model_metric < handle
                    %checked
                    %id==51243 Changes directory while analyzing. 
                    %id == 51705 % Requires user input: Enter morse code. 
-                  if (id==70131 || id==51243 || id ==24437619 || id==198236388 || id == 124448612 || id == 152409754 ) % potential crashes or hangs
-                       continue
-                  end
+                   if ispc
+                        if (id==70131 || id==51243 || id ==24437619 || id==198236388 || id == 124448612 ) % potential crashes or hangs
+                            continue
+                        end
+                   end
+                   if (id==51705) %  % Requires user input: Enter morse code. 
+                            continue
+                   end
              
                    %unzip the file TODO: Try CATCH
                    obj.WriteLog('Extracting Files');
@@ -726,21 +731,182 @@ classdef model_metric < handle
         end
         
 
-        %gets File Ids and model name from table
-        function results = correlation_analysis(obj)
-            sqlquery = ['select CComplexity,Compile_time,ncs_cnt,Hierarchy_depth from ' obj.table_name ' where is_Lib =0  and compiles = 1 and CComplexity!=-1 order by CComplexity'];
+        % correlation analysis : Cyclomatic complexity with other metrics 
+        function correlation_analysis(obj)
+            format short;
+    
+            sqlquery = ['select * from(',... 
+                ' select CComplexity,compile_time, Schk_block_count,total_connH_cnt, hierarchy_Depth,total_desc_cnt,ncs_cnt,scc_cnt from github_Metric ' ,...
+                ' where is_Lib =0  and compiles = 1 and CComplexity!=-1 ',...
+                ' union',...
+                ' select CComplexity,compile_time, Schk_block_count,total_connH_cnt, hierarchy_Depth,total_desc_cnt,ncs_cnt,scc_cnt from Matc_Metric  ',...
+                ' where is_Lib =0  and compiles = 1 and CComplexity!=-1 )',...
+                ' order by CComplexity'];
             results = fetch(obj.conn,sqlquery);
             results = cellfun(@(x)double(x),results);
+            %{
+            try
+                for i=1:6
+                    single_metric = sort(results(:,i));
+                    normalized_metric = (single_metric - mean(single_metric))/std(single_metric) ;
+                    disp(kstest( normalized_metric ));
+                end
+            catch e
+                fprintf('Err in normality test: \n');
+                return;
+            end
+              %}
             %metrics = cell2mat(results)
             [rho,pval] = corrcoef(results);
-            for i = 2:4
-            [tau, kpal] = corr(results(:,1),results(:,i), 'type', 'Kendall', 'rows', 'pairwise');
-            
-            fprintf('%d %d \n',tau,kpal);
+            Cc_corr_with ={'compile_time', 'block_count','connection', 'max depth','child representing blocks','NCS','SCC'};
+            for i = 2:8
+                 obj.WriteLog(sprintf('%s\n',Cc_corr_with{i-1}));
+                [tau, kpal] = corr(results(:,1),results(:,i), 'type', 'Kendall', 'rows', 'pairwise');
+                [Sm, Sp] = corr(results(:,1),results(:,i), 'type', 'Spearman', 'rows', 'pairwise');
+                fprintf('Kendall : %d %d \n',tau,kpal);
+                fprintf('Spearman : %d %d \n',Sm, Sp);
             end
-            [tau, kpal] = corr(results, 'type', 'Kendall', 'rows', 'pairwise')
+           % [tau, kpal] = corr(results, 'type', 'Kendall', 'rows', 'pairwise');
             
     
+        end
+        
+        function median_val = median(obj, list )
+            %list is sorted based on last columns
+                [~,idx] = sort(list(:,length(list(1,:))));
+                sorted_results = list(idx,:);
+                median_val = (length(sorted_results) + 1)/2;
+                
+                if(mod(median_val,2)==0)
+                    median_val = sorted_results(median_val,length(list(1,:)));
+                else
+                    median_val = sorted_results(ceil(median_val),length(list(1,:)))+ sorted_results(floor(median_val),length(list(1,:)))/2;
+                end
+        
+        end
+        function analyze_metrics(obj)
+            format long;
+            %total models analyzed : 
+            total_analyzed_mdl_query = ['select count(*) from',...
+                                ' (select * from github_metric where  is_lib=0',...
+                                 '   union',...
+                                  '  select * from  matc_metric where  is_lib=0',...
+                                   ' )'];
+            total_models_analyzed =  fetch(obj.conn,total_analyzed_mdl_query);
+            %Fetching from db 
+            query_hierar_median_blk_cnt =['select depth,block_count from ',...
+                '(select * from GitHub_Subsys_Info where (file_id,Model_Name)',...
+                ' not in (select file_id,Model_Name from GitHub_Metric where is_lib=1)',...
+                ' union',...
+                ' select * from MATC_Subsys_Info where (file_id,Model_Name)', ...
+                'not in (select file_id,Model_Name from matc_Metric where is_lib=1))'];
+            obj.WriteLog(sprintf("Fetching   block counts of each subsystem per hierarchial lvl with query \n %s",query_hierar_median_blk_cnt));
+            results = fetch(obj.conn,query_hierar_median_blk_cnt);
+            results = cellfun(@(x)double(x),results);
+            obj.WriteLog(sprintf("Fetched   %d results ",length(results)));
+            max_depth = max(results(:,1));
+            obj.WriteLog(sprintf("Max Depth =  %d  ",max_depth-1));%lvl 1 = lvl 0 as the subsystem is in lvl 0 and its corresponding blocks are in lvl 1 .
+            %results_per_hierar = cell(max_depth,1);
+            max_val = 0; % maximum number of blocks among all hierarchy lvl . 
+            for i = 1:max_depth
+                %results_per_hierar(i,1) = {results(results(:,1)==i,:)};
+                tmp_results_of_hierar_i = results(results(:,1)==i,:);
+                val = obj.median(tmp_results_of_hierar_i);
+                 obj.WriteLog(sprintf("Depth =  %d Median number of blocks per subsystem = %d  ",i-1,val));%lvl 1 = lvl 0 as the subsystem is in lvl 0 and its corresponding blocks are in lvl 1 .
+     
+                if(val>max_val)
+                    max_val = round(val);
+                end
+            end
+            
+            query_matc_models = 'select avg(SCHK_Block_count) from MATC_Metric where is_lib=0';
+            obj.WriteLog(sprintf("Fetching  Avg block counts in Matlab Central Models"));
+            avg_block = fetch(obj.conn,query_matc_models);
+            
+            models_over_1000_blk_query = ['select sum(c) from(',...
+            ' select count(*) as c from github_metric where SCHK_block_count>1000 and is_lib=0',...
+            ' union',...
+            ' select count(*) as c from  matc_metric where SCHK_block_count>1000 and is_lib=0',...
+            ' )'
+            ];
+            models_over_1000blk_cnt = fetch(obj.conn,models_over_1000_blk_query);
+            
+            %model referencing 
+            models_use_mdlref_query = ['select mdlref_nam_count from',...
+                                ' (select * from github_metric where unique_mdl_ref_count>0 and  is_lib=0',...
+                                 '   union',...
+                                  '  select * from  matc_metric where unique_mdl_ref_count>0 and is_lib=0',...
+                                   ' )'];
+            models_use_mdlref = fetch(obj.conn,models_use_mdlref_query);
+            mdl_ref_reuse_count = 0 ;
+            for j = 1 : length(models_use_mdlref)
+                mdl_ref_list = split(models_use_mdlref{j},',');
+                for k = 2 : length(mdl_ref_list) % 2 because there is always 0 char array at the beginning index
+                    tmp = split(mdl_ref_list{k},'_');
+                    mdl_ref_count = str2double(tmp{length(tmp)});
+                    if(mdl_ref_count>1)
+                       
+                        mdl_ref_reuse_count = mdl_ref_reuse_count+1; 
+                        break;
+                    end
+                end
+            end
+            %sfun_use_query
+            models_use_sfun_query = ['select sfun_nam_count from',...
+                                ' (select * from github_metric where unique_sfun_count>0 and  is_lib=0',...
+                                 '   union',...
+                                  '  select * from  matc_metric where unique_sfun_count>0 and is_lib=0',...
+                                   ' )'];
+            models_use_sfun = fetch(obj.conn,models_use_sfun_query);
+
+            %sfun_reuse_vector = [];
+            sfun_reuse_count = 0 ;
+            for j = 1 : length(models_use_sfun)
+                sfun_list = split(models_use_sfun{j},',');
+                for k = 2 : length(sfun_list) % 2 because there is always 0 char array at the beginning index
+                    tmp = split(sfun_list{k},'_');
+                    sfun_count = str2double(tmp{length(tmp)});
+                    if(sfun_count>1)
+                     %  sfun_reuse_vector(end+1) = 1;
+                        sfun_reuse_count = sfun_reuse_count+1; 
+                        break;
+                    
+                    end
+                    
+                end
+                %if sfun_count<=1
+                 %        sfun_reuse_vector(end+1) = 0;
+                 %   end
+            end
+            %median_sfun= obj.median(transpose(sfun_reuse_vector));
+            
+            
+            most_frequentlused_blocks_query_git = ['select BLK_TYPE,sum(count)  as c from GitHub_Block_Info group by BLK_TYPE order by  c desc'];
+            
+            most_frequentlused_blocks_query_matc = ['select  BLK_TYPE,sum(count)  as c from matc_Block_Info  group by BLK_TYPE order by  c desc'];
+            
+            most_frequentlused_blocks_git = fetch(obj.conn,most_frequentlused_blocks_query_git);
+            most_frequentlused_blocks_matc = fetch(obj.conn,most_frequentlused_blocks_query_matc);
+            
+            %15 most frequently used block besides top 3 . 
+            most_15_freq_used_blks_git = most_frequentlused_blocks_git{4};
+            most_15_freq_used_blks_matc = most_frequentlused_blocks_matc{4};
+            
+            for i = 5 : 18
+                most_15_freq_used_blks_git = strcat(most_15_freq_used_blks_git,",",most_frequentlused_blocks_git{i});
+                most_15_freq_used_blks_matc = strcat(most_15_freq_used_blks_matc,",",most_frequentlused_blocks_matc{i});
+            end
+            obj.WriteLog(sprintf("==============RESULTS=================="));
+            obj.WriteLog(sprintf("Total Models analyzed : %d ",total_models_analyzed{1}));
+            
+            obj.WriteLog(sprintf("Medium number of block per hierarchial lvl does not exceed  %d (vs 17)",max_val));
+            obj.WriteLog(sprintf("Average  number of block in Matlab Central models: %2.2f (which is %d times smaller than industrial models(752 models))",...
+                avg_block{1},(752/avg_block{1})));
+            obj.WriteLog(sprintf("Number of models with over 1000 blocks : %d (vs 93 models)",models_over_1000blk_cnt{1}));
+            obj.WriteLog(sprintf("Number of models that use model referencing : %d\n Number of models that reused referenced models : %d (vs 1 models) ",length(models_use_mdlref),mdl_ref_reuse_count));
+            obj.WriteLog(sprintf("Number of models that use S-functions : %d\n Number of models that reused sfun : %d\n Fraction of model reusing sfun = %d",length(models_use_sfun),sfun_reuse_count,sfun_reuse_count/length(models_use_sfun)));
+            obj.WriteLog(sprintf("Most Frequently used blocks in GitHub projects : \n %s ",most_15_freq_used_blks_git));
+            obj.WriteLog(sprintf("Most Frequently used blocks in Matlab Central projects : \n %s ",most_15_freq_used_blks_matc));
         end
         
 
