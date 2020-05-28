@@ -763,8 +763,8 @@ classdef model_metric < handle
                  obj.WriteLog(sprintf('%s\n',Cc_corr_with{i-1}));
                 [tau, kpal] = corr(results(:,1),results(:,i), 'type', 'Kendall', 'rows', 'pairwise');
                 [Sm, Sp] = corr(results(:,1),results(:,i), 'type', 'Spearman', 'rows', 'pairwise');
-                fprintf('Kendall : %d %d \n',tau,kpal);
-                fprintf('Spearman : %d %d \n',Sm, Sp);
+                fprintf('Kendall : %2.4f %2.4f \n',tau,kpal);
+                fprintf('Spearman : %2.4f %2.4f \n',Sm, Sp);
             end
            % [tau, kpal] = corr(results, 'type', 'Kendall', 'rows', 'pairwise');
             
@@ -909,6 +909,82 @@ classdef model_metric < handle
             obj.WriteLog(sprintf("Most Frequently used blocks in Matlab Central projects : \n %s ",most_15_freq_used_blks_matc));
         end
         
+        function res = total_analyze_metric(obj,table)
+            blk_connec_query = ['select sum(SLDiag_Block_count),sum(SCHK_block_count),sum(total_ConnH_cnt) from ', table ,' where is_Lib = 0'];
+            solver_type_query = ['select solver_type,count(solver_type) from ', table, ' where is_Lib = 0 group by solver_type'];
+            sim_mode_query = ['select sim_mode,count(sim_mode) from ',table,' where is_Lib = 0 group by sim_mode'];
+            total_analyzedmdl_query = ['select count(*) from ', table,' where is_Lib = 0 '];
+            total_model_compiles = ['select count(*) from ',table,' where is_Lib = 0  and compiles = 1'];
+            total_hierarchial_model_query = ['select count(*) from ',table, ' where is_Lib = 0  and Hierarchy_depth>0'];
+            
+            obj.WriteLog(sprintf("Fetching Total Analyzed model of %s table with query \n %s",table,total_analyzedmdl_query));
+            total_analyzedmdl = fetch(obj.conn, total_analyzedmdl_query);
+            
+            res.analyzedmdl = total_analyzedmdl{1};
+            
+            obj.WriteLog(sprintf("Fetching Total readily compilable model of %s table with query \n %s",table,total_model_compiles));
+            total_model_compiles = fetch(obj.conn, total_model_compiles);
+            
+            res.mdl_compiles = total_model_compiles{1};
+            
+            obj.WriteLog(sprintf("Fetching Total hierarchial model of %s table with query \n %s",table,total_hierarchial_model_query));
+            total_hierarchial_model = fetch(obj.conn, total_hierarchial_model_query);
+            
+            res.total_hierar = total_hierarchial_model{1};
+            
+            obj.WriteLog(sprintf("Fetching Total counts of %s table with query \n %s",table,blk_connec_query));
+            blk_connec_cnt = fetch(obj.conn, blk_connec_query);
+            
+            res.sldiag = blk_connec_cnt{1};
+            res.slchk = blk_connec_cnt{2};
+            res.connec = blk_connec_cnt{3};
+            
+            obj.WriteLog(sprintf("Fetching solver type of %s table with query \n %s",table,solver_type_query));
+            solver_type = fetch(obj.conn, solver_type_query);
+            res.other_solver = 0 ;
+            for i = 1 : length(solver_type)
+                if(strcmp(solver_type{i,1},'Fixed-step'))
+                    res.fix = solver_type{i,2};
+                elseif (strcmp(solver_type{i,1},'Variable-step'))
+                     res.var = solver_type{i,2};
+                else 
+                    res.other_solver = res.other_solver + solver_type{i,2};
+                end
+            end
+            
+            
+            obj.WriteLog(sprintf("Fetching simulation mode of %s table with query \n %s",table,sim_mode_query));
+            sim_mode = fetch(obj.conn, sim_mode_query);
+            res.other_sim = 0 ;
+            for i = 1 : length(sim_mode)
+                switch sim_mode{i,1}
+                    case 'accelerator'
+                        res.acc = sim_mode{i,2};
+                    case 'external'
+                        res.ext = sim_mode{i,2};
+                    case 'normal'
+                        res.normal = sim_mode{i,2};
+                    case 'processor-in-the-loop (pil)'
+                        res.pil = sim_mode{i,2};
+                    case 'rapid-accelerator'
+                        res.rpdacc = sim_mode{i,2};
+                    otherwise
+                        res.other_sim = res.other_sim + sim_mode{i,2};
+                end
+            end
+            
+
+        
+        end
+        function grand_total_analyze_metric(obj)
+            github = obj.total_analyze_metric('Github_metric');
+            matc = obj.total_analyze_metric('MATC_metric');
+            fn = fieldnames(matc)
+            for i = 1 : length(fn)
+                res.(fn{i}) = github.(fn{i}) + matc.(fn{i});
+            end
+            res
+         end
 
     end
     
