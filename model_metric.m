@@ -65,7 +65,7 @@ classdef model_metric < handle
             try
                 startTime = eval(startTime);
                 stopTime = eval(stopTime); %making sure that evaluation parts converts to numeric data
-                if isfinite(stopTime) && isfinite(startTime) % isfinite() Check whether symbolic array elements are finite
+                if isfinite(stopTime) && isfinite(startTime) % isfinite() Check whether symbolic array elemtableents are finite
                     
                     assert(isnumeric(startTime) && isnumeric(stopTime));
                     sim_time = stopTime-startTime;
@@ -757,14 +757,14 @@ classdef model_metric < handle
             end
               %}
             %metrics = cell2mat(results)
-            [rho,pval] = corrcoef(results);
+            %[rho,pval] = corrcoef(results);
             Cc_corr_with ={'compile_time', 'block_count','connection', 'max depth','child representing blocks','NCS','SCC'};
             for i = 2:8
                  obj.WriteLog(sprintf('%s\n',Cc_corr_with{i-1}));
                 [tau, kpal] = corr(results(:,1),results(:,i), 'type', 'Kendall', 'rows', 'pairwise');
                 [Sm, Sp] = corr(results(:,1),results(:,i), 'type', 'Spearman', 'rows', 'pairwise');
-                fprintf('Kendall : %2.4f %2.4f \n',tau,kpal);
-                fprintf('Spearman : %2.4f %2.4f \n',Sm, Sp);
+                fprintf('Kendall : %2.4f %d \n',tau,kpal);
+                fprintf('Spearman : %2.4f %d \n',Sm, Sp);
             end
            % [tau, kpal] = corr(results, 'type', 'Kendall', 'rows', 'pairwise');
             
@@ -909,37 +909,107 @@ classdef model_metric < handle
             obj.WriteLog(sprintf("Most Frequently used blocks in Matlab Central projects : \n %s ",most_15_freq_used_blks_matc));
         end
         
-        function res = total_analyze_metric(obj,table)
-            blk_connec_query = ['select sum(SLDiag_Block_count),sum(SCHK_block_count),sum(total_ConnH_cnt) from ', table ,' where is_Lib = 0'];
-            solver_type_query = ['select solver_type,count(solver_type) from ', table, ' where is_Lib = 0 group by solver_type'];
-            sim_mode_query = ['select sim_mode,count(sim_mode) from ',table,' where is_Lib = 0 group by sim_mode'];
-            total_analyzedmdl_query = ['select count(*) from ', table,' where is_Lib = 0 '];
-            total_model_compiles = ['select count(*) from ',table,' where is_Lib = 0  and compiles = 1'];
-            total_hierarchial_model_query = ['select count(*) from ',table, ' where is_Lib = 0  and Hierarchy_depth>0'];
+        function res = total_analyze_metric(obj,choice)
+            %{
+               analyzes the metrics . 
+               This function can be be called from
+               grand_total_analyze_metric() to get a aggregated results. 
+            arguments: 
+                choice : a particular table name or categorization label
+                (i.e.,Simple or Advanced
+            %}
             
-            obj.WriteLog(sprintf("Fetching Total Analyzed model of %s table with query \n %s",table,total_analyzedmdl_query));
+            
+         
+            switch choice
+                case 'Simple'
+                    simple_union_table_query = [
+                            ' (select * from Github_metric where File_id in (select id from GitHub_Projects where forks_count=0 or stargazers_count=0) and  is_Lib = 0',... 
+                            ' union', ...
+                            ' select * from Matc_metric where File_id in (select id from matc_Projects where no_of_ratings=0 or downloads=0) and  is_Lib = 0 )']
+                        blk_connec_query = ['select sum(SLDiag_Block_count),sum(SCHK_block_count),sum(total_ConnH_cnt) from ', simple_union_table_query];
+                        solver_type_query = ['select solver_type,count(solver_type) from ',simple_union_table_query, ' group by solver_type'];
+                        sim_mode_query = ['select sim_mode,count(sim_mode) from ', simple_union_table_query,' group by sim_mode'];
+                        total_analyzedmdl_query = ['select count(*) from ',simple_union_table_query];
+                        total_model_compiles = ['select count(*) from ',simple_union_table_query,' where compiles = 1'];
+                        total_hierarchial_model_query = ['select count(*) from ',simple_union_table_query,' where Hierarchy_depth>0'];
+                        most_frequentlused_blocks_query = [' select BLK_TYPE,sum(count)  as c from ( ',...
+                                                           ' select * from github_Block_Info where (File_id,Model_Name) in (',...
+                                                           ' select File_id,Model_Name from ',simple_union_table_query,...
+                                                           ' )',...
+                                                           'union ',...
+                                                           ' select * from matc_Block_Info where (File_id,Model_Name) in (',...
+                                                           ' select File_id,Model_Name from ',simple_union_table_query,...
+                                                           ' )',...
+                                               ' ) group by BLK_TYPE order by  c desc'];
+        
+                     
+                case 'Advanced'
+                    advanced_union_table_query = [
+                            ' (select * from Github_metric where File_id in (select id from GitHub_Projects where forks_count>0 and stargazers_count>0) and  is_Lib = 0',... 
+                            ' union', ...
+                            ' select * from Matc_metric where File_id in (select id from matc_Projects where no_of_ratings>0 and downloads>0) and  is_Lib = 0 )']
+                        blk_connec_query = ['select sum(SLDiag_Block_count),sum(SCHK_block_count),sum(total_ConnH_cnt) from ', advanced_union_table_query];
+                        solver_type_query = ['select solver_type,count(solver_type) from ',advanced_union_table_query, ' group by solver_type'];
+                        sim_mode_query = ['select sim_mode,count(sim_mode) from ', advanced_union_table_query,' group by sim_mode'];
+                        total_analyzedmdl_query = ['select count(*) from ',advanced_union_table_query];
+                        total_model_compiles = ['select count(*) from ',advanced_union_table_query,' where compiles = 1'];
+                        total_hierarchial_model_query = ['select count(*) from ',advanced_union_table_query,' where Hierarchy_depth>0'];
+                        most_frequentlused_blocks_query = [' select BLK_TYPE,sum(count)  as c from ( ',...
+                                                           ' select * from github_Block_Info where (File_id,Model_Name) in (',...
+                                                           ' select File_id,Model_Name from ',advanced_union_table_query,...
+                                                           ' )',...
+                                                           'union ',...
+                                                           ' select * from matc_Block_Info where (File_id,Model_Name) in (',...
+                                                           ' select File_id,Model_Name from ',advanced_union_table_query,...
+                                                           ' )',...
+                                               ' ) group by BLK_TYPE order by  c desc'];
+                otherwise
+                    blk_connec_query = ['select sum(SLDiag_Block_count),sum(SCHK_block_count),sum(total_ConnH_cnt) from ', choice ,' where is_Lib = 0'];
+                    solver_type_query = ['select solver_type,count(solver_type) from ', choice, ' where is_Lib = 0 group by solver_type'];
+                    sim_mode_query = ['select sim_mode,count(sim_mode) from ',choice,' where is_Lib = 0 group by sim_mode'];
+                    total_analyzedmdl_query = ['select count(*) from ', choice,' where is_Lib = 0 '];
+                    total_model_compiles = ['select count(*) from ',choice,' where is_Lib = 0  and compiles = 1'];
+                    total_hierarchial_model_query = ['select count(*) from ',choice, ' where is_Lib = 0  and Hierarchy_depth>0'];
+                    switch lower(choice)
+                        case 'github_metric'
+                             most_frequentlused_blocks_query = ['select BLK_TYPE,sum(count)  as c from GitHub_Block_Info  where (File_id,Model_Name) in ( ',...
+                                 ' select File_id,Model_Name from GitHub_Metric where is_Lib=0 )',...
+                                 ' group by BLK_TYPE order by  c desc'];
+                        case 'matc_metric'
+                             most_frequentlused_blocks_query = ['select BLK_TYPE,sum(count)  as c from Matc_Block_Info where (File_id,Model_Name) in ( ',...
+                                 ' select File_id,Model_Name from matc_Metric where is_Lib=0 )',...
+                                 '  group by BLK_TYPE order by  c desc'];
+                    end 
+                            
+                   
+                    
+            end
+               
+            
+            obj.WriteLog(sprintf("Fetching Total Analyzed model of %s choice with query \n %s",choice,total_analyzedmdl_query));
             total_analyzedmdl = fetch(obj.conn, total_analyzedmdl_query);
             
             res.analyzedmdl = total_analyzedmdl{1};
             
-            obj.WriteLog(sprintf("Fetching Total readily compilable model of %s table with query \n %s",table,total_model_compiles));
+            obj.WriteLog(sprintf("Fetching Total readily compilable model of %s choice with query \n %s",choice,total_model_compiles));
             total_model_compiles = fetch(obj.conn, total_model_compiles);
             
             res.mdl_compiles = total_model_compiles{1};
             
-            obj.WriteLog(sprintf("Fetching Total hierarchial model of %s table with query \n %s",table,total_hierarchial_model_query));
+            obj.WriteLog(sprintf("Fetching Total hierarchial model of %s choice with query \n %s",choice,total_hierarchial_model_query));
             total_hierarchial_model = fetch(obj.conn, total_hierarchial_model_query);
             
             res.total_hierar = total_hierarchial_model{1};
             
-            obj.WriteLog(sprintf("Fetching Total counts of %s table with query \n %s",table,blk_connec_query));
+            obj.WriteLog(sprintf("Fetching Total counts of %s choice with query \n %s",choice,blk_connec_query));
             blk_connec_cnt = fetch(obj.conn, blk_connec_query);
             
             res.sldiag = blk_connec_cnt{1};
             res.slchk = blk_connec_cnt{2};
             res.connec = blk_connec_cnt{3};
             
-            obj.WriteLog(sprintf("Fetching solver type of %s table with query \n %s",table,solver_type_query));
+            obj.WriteLog(sprintf("Fetching solver type of %s choice with query \n %s",choice,solver_type_query));
             solver_type = fetch(obj.conn, solver_type_query);
             res.other_solver = 0 ;
             for i = 1 : length(solver_type)
@@ -953,7 +1023,7 @@ classdef model_metric < handle
             end
             
             
-            obj.WriteLog(sprintf("Fetching simulation mode of %s table with query \n %s",table,sim_mode_query));
+            obj.WriteLog(sprintf("Fetching simulation mode of %s choice with query \n %s",choice,sim_mode_query));
             sim_mode = fetch(obj.conn, sim_mode_query);
             res.other_sim = 0 ;
             for i = 1 : length(sim_mode)
@@ -973,17 +1043,40 @@ classdef model_metric < handle
                 end
             end
             
-
+             most_frequentlused_blocks = fetch(obj.conn,most_frequentlused_blocks_query);
+            
+            %18 most frequently used block 
+            most_15_freq_used_blks = most_frequentlused_blocks{1};
+            
+            for i = 2 : 18
+                most_15_freq_used_blks = strcat(most_15_freq_used_blks,",",most_frequentlused_blocks{i});
+            end
+            res.most_freq_blks = most_15_freq_used_blks;
         
         end
         function grand_total_analyze_metric(obj)
             github = obj.total_analyze_metric('Github_metric');
             matc = obj.total_analyze_metric('MATC_metric');
-            fn = fieldnames(matc)
+            fn = fieldnames(matc);
             for i = 1 : length(fn)
                 res.(fn{i}) = github.(fn{i}) + matc.(fn{i});
             end
-            res
+            
+            simple = obj.total_analyze_metric('Simple');
+            advanced = obj.total_analyze_metric('Advanced');
+            fn = fieldnames(simple);
+            for i = 1 : length(fn)
+                res_sa.(fn{i}) = simple.(fn{i}) + advanced.(fn{i});
+            end
+            
+            for i = 1 : length(fn)
+                if(strcmp(fn{i},'most_freq_blks'))
+                    continue
+                end
+                assert(res.(fn{i}) ==res_sa.(fn{i}), ['Error comparing ',fn{i}]);
+            end
+            
+      
          end
 
     end
