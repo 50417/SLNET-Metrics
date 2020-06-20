@@ -1084,126 +1084,67 @@ classdef model_metric < handle
             res.most_freq_blks = most_15_freq_used_blks;
         
         end
-            
-        function res = total_analyze_metric_replicate(obj,where_clause)
-     
-               
-                    advanced_union_table_query = [
-                            '( select *  from ( '...
-'select * from Github_Metric union ALL '...
-'select * from MATC_Metric union ALL '...
-'select * from SourceForge_Metric union ALL '... 
-'select * from Others_Metric union ALL '...
-'select * from Tutorial_Metric '...
-') where is_Lib = 0 and substr(Model_Name,1,length(MOdel_name)-4) in (' where_clause ') ) ']
-                        blk_connec_query = ['select sum(SLDiag_Block_count),sum(SCHK_block_count),sum(total_ConnH_cnt) from ', advanced_union_table_query];
-                        solver_type_query = ['select solver_type,count(solver_type) from ',advanced_union_table_query, ' group by solver_type'];
-                        sim_mode_query = ['select sim_mode,count(sim_mode) from ', advanced_union_table_query,' group by sim_mode'];
-                        total_analyzedmdl_query = ['select count(*) from ',advanced_union_table_query];
-                        total_model_compiles = ['select count(*) from ',advanced_union_table_query,' where compiles = 1'];
-                        total_hierarchial_model_query = ['select count(*) from ',advanced_union_table_query,' where Hierarchy_depth>0'];
-                        most_frequentlused_blocks_query = [' select BLK_TYPE,sum(count)  as c from ( ',...
-                                                           ' select * from github_Block_Info where (File_id,Model_Name) in (',...
-                                                           ' select File_id,Model_Name from ',advanced_union_table_query,...
-                                                           ' )',...
-                                                           'union ',...
-                                                           ' select * from matc_Block_Info where (File_id,Model_Name) in (',...
-                                                           ' select File_id,Model_Name from ',advanced_union_table_query,...
-                                                           ' )',...
-                                               ' ) group by BLK_TYPE order by  c desc'];
              
-               
+        function res = grand_total_analyze_metric(obj,flag)
+            % concatenates the results of  different metrics of the different table. 
+            % flag is set to true if grand total of earlier replication. Or else set to
+            % false if calculating for slnet
+            % used to produce the results in the total column of the table
             
-            obj.WriteLog(sprintf("Fetching Total Analyzed model of %s choice with query \n %s",choice,total_analyzedmdl_query));
-            total_analyzedmdl = fetch(obj.conn, total_analyzedmdl_query);
-            
-            res.analyzedmdl = total_analyzedmdl{1};
-            
-            obj.WriteLog(sprintf("Fetching Total readily compilable model of %s choice with query \n %s",choice,total_model_compiles));
-            total_model_compiles = fetch(obj.conn, total_model_compiles);
-            
-            res.mdl_compiles = total_model_compiles{1};
-            
-            obj.WriteLog(sprintf("Fetching Total hierarchial model of %s choice with query \n %s",choice,total_hierarchial_model_query));
-            total_hierarchial_model = fetch(obj.conn, total_hierarchial_model_query);
-            
-            res.total_hierar = total_hierarchial_model{1};
-            
-            obj.WriteLog(sprintf("Fetching Total counts of %s choice with query \n %s",choice,blk_connec_query));
-            blk_connec_cnt = fetch(obj.conn, blk_connec_query);
-            
-            res.sldiag = blk_connec_cnt{1};
-            res.slchk = blk_connec_cnt{2};
-            res.connec = blk_connec_cnt{3};
-            
-            obj.WriteLog(sprintf("Fetching solver type of %s choice with query \n %s",choice,solver_type_query));
-            solver_type = fetch(obj.conn, solver_type_query);
-            res.other_solver = 0 ;
-            for i = 1 : length(solver_type)
-                if(strcmp(solver_type{i,1},'Fixed-step'))
-                    res.fix = solver_type{i,2};
-                elseif (strcmp(solver_type{i,1},'Variable-step'))
-                     res.var = solver_type{i,2};
-                else 
-                    res.other_solver = res.other_solver + solver_type{i,2};
-                end
-            end
-            
-            
-            obj.WriteLog(sprintf("Fetching simulation mode of %s choice with query \n %s",choice,sim_mode_query));
-            sim_mode = fetch(obj.conn, sim_mode_query);
-            res.other_sim = 0 ;
-            for i = 1 : length(sim_mode)
-                switch sim_mode{i,1}
-                    case 'accelerator'
-                        res.acc = sim_mode{i,2};
-                    case 'external'
-                        res.ext = sim_mode{i,2};
-                    case 'normal'
-                        res.normal = sim_mode{i,2};
-                    case 'processor-in-the-loop (pil)'
-                        res.pil = sim_mode{i,2};
-                    case 'rapid-accelerator'
-                        res.rpdacc = sim_mode{i,2};
-                    otherwise
-                        res.other_sim = res.other_sim + sim_mode{i,2};
-                end
-            end
-            
-             most_frequentlused_blocks = fetch(obj.conn,most_frequentlused_blocks_query);
-            
-            %18 most frequently used block 
-            most_15_freq_used_blks = most_frequentlused_blocks{1};
-            
-            for i = 2 : 18
-                most_15_freq_used_blks = strcat(most_15_freq_used_blks,",",most_frequentlused_blocks{i});
-            end
-            res.most_freq_blks = most_15_freq_used_blks;
-        
-        end
-        
-        
-        function grand_total_analyze_metric(obj)
             github = obj.total_analyze_metric('Github_metric');
             matc = obj.total_analyze_metric('MATC_metric');
             fn = fieldnames(matc);
-            for i = 1 : length(fn)
-                res.(fn{i}) = github.(fn{i}) + matc.(fn{i});
-            end
+            fn = union(fn, fieldnames(github));
+            if(flag)
+                sourceforge = obj.total_analyze_metric('sourceforge_metric');
+                tutorial  = obj.total_analyze_metric('tutorial_metric');
+                fn = union(fn, fieldnames(sourceforge));
+                fn = union(fn, fieldnames(tutorial));
+            end 
             
-            simple = obj.total_analyze_metric('Simple');
-            advanced = obj.total_analyze_metric('Advanced');
-            fn = fieldnames(simple);
-            for i = 1 : length(fn)
-                res_sa.(fn{i}) = simple.(fn{i}) + advanced.(fn{i});
-            end
+            
+            
             
             for i = 1 : length(fn)
-                if(strcmp(fn{i},'most_freq_blks'))
-                    continue
+                res.(fn{i}) = 0;
+                if(flag)
+                    if ismember(fn{i},fieldnames(github)) 
+                        res.(fn{i}) = github.(fn{i}) + res.(fn{i});
+                    end
+                    if ismember(fn{i},fieldnames(matc)) 
+                        res.(fn{i}) = res.(fn{i}) + matc.(fn{i})
+                    end
+                     if ismember(fn{i},fieldnames(sourceforge)) 
+                        res.(fn{i}) = res.(fn{i}) + sourceforge.(fn{i})
+                     end
+                     if ismember(fn{i},fieldnames(tutorial)) 
+                        res.(fn{i}) = res.(fn{i}) + tutorial.(fn{i})
+                     end
+                else
+                    if ismember(fn{i},fieldnames(github)) & ismember(fn{i},fieldnames(matc) )
+                        res.(fn{i}) = github.(fn{i}) + matc.(fn{i});
+                    elseif  ismember(fn{i},fieldnames(github))
+                         res.(fn{i}) = github.(fn{i})
+                    elseif  ismember(fn{i},fieldnames(matc))
+                            res.(fn{i}) = matc.(fn{i})
+                    end
+                    
                 end
-                assert(res.(fn{i}) ==res_sa.(fn{i}), ['Error comparing ',fn{i}]);
             end
+            
+            %simple = obj.total_analyze_metric('Simple');
+            %advanced = obj.total_analyze_metric('Advanced');
+            %fn = fieldnames(simple);
+            %for i = 1 : length(fn)
+            %    res_sa.(fn{i}) = simple.(fn{i}) + advanced.(fn{i});
+            %end
+            
+            %for i = 1 : length(fn)
+             %   if(strcmp(fn{i},'most_freq_blks'))
+             %       continue
+             %   end
+              %  assert(res.(fn{i}) ==res_sa.(fn{i}), ['Error comparing ',fn{i}]);
+            %end
             
       
         end
