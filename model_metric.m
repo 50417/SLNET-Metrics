@@ -315,9 +315,10 @@ classdef model_metric < handle
            %Loop over each Zip File 
            for cnt = 1 : size(list_of_zip_files)
               
-              
+                    
 
-                     name =strtrim(char(list_of_zip_files(cnt).name));  
+                    name =strtrim(char(list_of_zip_files(cnt).name));  
+              
                     obj.get_full_path(name);
                     log = strcat("Processing #",  num2str(processed_file_count), " :File Id ",list_of_zip_files(cnt).name) ;
                     obj.WriteLog(log);
@@ -730,18 +731,32 @@ classdef model_metric < handle
        
         end
         
+        % FUNCTIONS BELOW ARE ANALYSIS of the EXTRACTED METRICS
 
         % correlation analysis : Cyclomatic complexity with other metrics 
-        function correlation_analysis(obj)
+        function correlation_analysis(obj, varargin)
+            % Can be called as obj.correlation_analysis('GitHub')
+            % obj.correlation_analysis('GitHub','MATC')
+            % obj.correlation_analysis('GitHub','Tutorial,sourceforge','matc')
+            
+            %
             format short;
-    
-            sqlquery = ['select * from(',... 
-                ' select CComplexity,compile_time, Schk_block_count,total_connH_cnt, hierarchy_Depth,total_desc_cnt,ncs_cnt,scc_cnt from github_Metric ' ,...
-                ' where is_Lib =0  and compiles = 1 and CComplexity!=-1 ',...
-                ' union',...
-                ' select CComplexity,compile_time, Schk_block_count,total_connH_cnt, hierarchy_Depth,total_desc_cnt,ncs_cnt,scc_cnt from Matc_Metric  ',...
-                ' where is_Lib =0  and compiles = 1 and CComplexity!=-1 )',...
-                ' order by CComplexity'];
+            CC_compare_with = 'select  CComplexity,compile_time, Schk_block_count,total_connH_cnt, hierarchy_Depth,total_desc_cnt,ncs_cnt,scc_cnt ,cnt from ( ';
+            where_clause = ' ) where is_lib = 0 and compiles = 1 and CComplexity !=-1 Order by CComplexity';
+            
+                innerquery = ['select b.*, a.cnt from  ',varargin{1}, '_Metric b join ( select File_id, Model_Name, count(blk_type) as cnt from ',varargin{1}, ...
+                    '_Block_Info group by File_id,Model_Name) a on a.File_id = b.File_id and  a.Model_Name = b.Model_Name'];
+           if nargin > 1
+                for i = 2:nargin-1
+                    innerquery = [innerquery,' union select b.*, a.cnt from  ',varargin{i}, '_Metric b join ( select File_id, Model_Name, count(blk_type) as cnt from ',varargin{i}, ...
+                    '_Block_Info group by File_id,Model_Name) a on a.File_id = b.File_id and  a.Model_Name = b.Model_Name'];
+                    
+                end
+            end
+               
+            sqlquery = [CC_compare_with,innerquery,where_clause ];
+
+           
             results = fetch(obj.conn,sqlquery);
             results = cellfun(@(x)double(x),results);
             %{
@@ -758,16 +773,21 @@ classdef model_metric < handle
               %}
             %metrics = cell2mat(results)
             %[rho,pval] = corrcoef(results);
-            Cc_corr_with ={'compile_time', 'block_count','connection', 'max depth','child representing blocks','NCS','SCC'};
-            for i = 2:8
-                 obj.WriteLog(sprintf('%s\n',Cc_corr_with{i-1}));
+            %Correlation of Cyclomatic complexity with the following
+            %metrics
+            Cc_corr_with ={'compile_time', 'block_count','connection', 'max depth','child representing blocks','NCS','SCC','Unique blk Count'};
+            res ={};
+            for i = 2:length(Cc_corr_with)+1
+                % obj.WriteLog(sprintf('%s',Cc_corr_with{i-1}));
                 [tau, kpal] = corr(results(:,1),results(:,i), 'type', 'Kendall', 'rows', 'pairwise');
                 [Sm, Sp] = corr(results(:,1),results(:,i), 'type', 'Spearman', 'rows', 'pairwise');
-                fprintf('Kendall : %2.4f %d \n',tau,kpal);
-                fprintf('Spearman : %2.4f %d \n',Sm, Sp);
+                %fprintf('Kendall : %2.4f %d \n',tau,kpal);
+                %fprintf('Spearman : %2.4f %d \n\n',Sm, Sp);
+                res{i-1,1} = string(Cc_corr_with{i-1});
+                res{i-1,2} = tau;
             end
            % [tau, kpal] = corr(results, 'type', 'Kendall', 'rows', 'pairwise');
-            
+            sortrows(res,[2,2])
     
         end
         
@@ -916,7 +936,7 @@ classdef model_metric < handle
                grand_total_analyze_metric() to get a aggregated results. 
             arguments: 
                 choice : a particular table name or categorization label
-                (i.e.,Simple or Advanced
+                (i.e.,Simple or Advanced)
             %}
             
             
@@ -924,9 +944,9 @@ classdef model_metric < handle
             switch choice
                 case 'Simple'
                     simple_union_table_query = [
-                            ' (select * from Github_metric where File_id in (select id from GitHub_Projects where forks_count=0 or stargazers_count=0) and  is_Lib = 0',... 
+                            ' (select * from Github_metric where File_id in (select id from GitHub_Projects where forks_count<10 or stargazers_count<10) and  is_Lib = 0',... 
                             ' union', ...
-                            ' select * from Matc_metric where File_id in (select id from matc_Projects where no_of_ratings=0 or downloads=0) and  is_Lib = 0 )']
+                            ' select * from Matc_metric where File_id in (select id from matc_Projects where no_of_ratings<10 or downloads<10 or average_rating<3.0) and  is_Lib = 0 )']
                         blk_connec_query = ['select sum(SLDiag_Block_count),sum(SCHK_block_count),sum(total_ConnH_cnt) from ', simple_union_table_query];
                         solver_type_query = ['select solver_type,count(solver_type) from ',simple_union_table_query, ' group by solver_type'];
                         sim_mode_query = ['select sim_mode,count(sim_mode) from ', simple_union_table_query,' group by sim_mode'];
@@ -946,9 +966,9 @@ classdef model_metric < handle
                      
                 case 'Advanced'
                     advanced_union_table_query = [
-                            ' (select * from Github_metric where File_id in (select id from GitHub_Projects where forks_count>0 and stargazers_count>0) and  is_Lib = 0',... 
+                            ' (select * from Github_metric where File_id in (select id from GitHub_Projects where forks_count>=10 and stargazers_count>=10) and  is_Lib = 0',... 
                             ' union', ...
-                            ' select * from Matc_metric where File_id in (select id from matc_Projects where no_of_ratings>0 and downloads>0) and  is_Lib = 0 )']
+                            ' select * from Matc_metric where File_id in (select id from matc_Projects where no_of_ratings>=10 and downloads>=10 and average_rating>=3.0) and  is_Lib = 0 )']
                         blk_connec_query = ['select sum(SLDiag_Block_count),sum(SCHK_block_count),sum(total_ConnH_cnt) from ', advanced_union_table_query];
                         solver_type_query = ['select solver_type,count(solver_type) from ',advanced_union_table_query, ' group by solver_type'];
                         sim_mode_query = ['select sim_mode,count(sim_mode) from ', advanced_union_table_query,' group by sim_mode'];
@@ -980,11 +1000,118 @@ classdef model_metric < handle
                              most_frequentlused_blocks_query = ['select BLK_TYPE,sum(count)  as c from Matc_Block_Info where (File_id,Model_Name) in ( ',...
                                  ' select File_id,Model_Name from matc_Metric where is_Lib=0 )',...
                                  '  group by BLK_TYPE order by  c desc'];
+                        case 'sourceforge_metric'
+                             most_frequentlused_blocks_query = ['select BLK_TYPE,sum(count)  as c from Matc_Block_Info where (File_id,Model_Name) in ( ',...
+                                 ' select File_id,Model_Name from matc_Metric where is_Lib=0 )',...
+                                 '  group by BLK_TYPE order by  c desc'];
+                       case 'tutorial_metric'
+                             most_frequentlused_blocks_query = ['select BLK_TYPE,sum(count)  as c from Matc_Block_Info where (File_id,Model_Name) in ( ',...
+                                 ' select File_id,Model_Name from matc_Metric where is_Lib=0 )',...
+                                 '  group by BLK_TYPE order by  c desc'];
                     end 
                             
                    
                     
             end
+               
+            
+            obj.WriteLog(sprintf("Fetching Total Analyzed model of %s choice with query \n %s",choice,total_analyzedmdl_query));
+            total_analyzedmdl = fetch(obj.conn, total_analyzedmdl_query);
+            
+            res.analyzedmdl = total_analyzedmdl{1};
+            
+            obj.WriteLog(sprintf("Fetching Total readily compilable model of %s choice with query \n %s",choice,total_model_compiles));
+            total_model_compiles = fetch(obj.conn, total_model_compiles);
+            
+            res.mdl_compiles = total_model_compiles{1};
+            
+            obj.WriteLog(sprintf("Fetching Total hierarchial model of %s choice with query \n %s",choice,total_hierarchial_model_query));
+            total_hierarchial_model = fetch(obj.conn, total_hierarchial_model_query);
+            
+            res.total_hierar = total_hierarchial_model{1};
+            
+            obj.WriteLog(sprintf("Fetching Total counts of %s choice with query \n %s",choice,blk_connec_query));
+            blk_connec_cnt = fetch(obj.conn, blk_connec_query);
+            
+            res.sldiag = blk_connec_cnt{1};
+            res.slchk = blk_connec_cnt{2};
+            res.connec = blk_connec_cnt{3};
+            
+            obj.WriteLog(sprintf("Fetching solver type of %s choice with query \n %s",choice,solver_type_query));
+            solver_type = fetch(obj.conn, solver_type_query);
+            res.other_solver = 0 ;
+            [row,~] = size(solver_type);
+            for i = 1 : row
+                if(strcmp(solver_type{i,1},'Fixed-step'))
+                    res.fix = solver_type{i,2};
+                elseif (strcmp(solver_type{i,1},'Variable-step'))
+                     res.var = solver_type{i,2};
+                else 
+                    res.other_solver = res.other_solver + solver_type{i,2};
+                end
+            end
+            
+            
+            obj.WriteLog(sprintf("Fetching simulation mode of %s choice with query \n %s",choice,sim_mode_query));
+            sim_mode = fetch(obj.conn, sim_mode_query);
+            res.other_sim = 0 ;
+            [row,~] = size(sim_mode);
+            for i = 1 : row
+                switch sim_mode{i,1}
+                    case 'accelerator'
+                        res.acc = sim_mode{i,2};
+                    case 'external'
+                        res.ext = sim_mode{i,2};
+                    case 'normal'
+                        res.normal = sim_mode{i,2};
+                    case 'processor-in-the-loop (pil)'
+                        res.pil = sim_mode{i,2};
+                    case 'rapid-accelerator'
+                        res.rpdacc = sim_mode{i,2};
+                    otherwise
+                        res.other_sim = res.other_sim + sim_mode{i,2};
+                end
+            end
+            
+             most_frequentlused_blocks = fetch(obj.conn,most_frequentlused_blocks_query);
+            
+            %18 most frequently used block 
+            most_15_freq_used_blks = most_frequentlused_blocks{1};
+            
+            for i = 2 : 18
+                most_15_freq_used_blks = strcat(most_15_freq_used_blks,",",most_frequentlused_blocks{i});
+            end
+            res.most_freq_blks = most_15_freq_used_blks;
+        
+        end
+            
+        function res = total_analyze_metric_replicate(obj,where_clause)
+     
+               
+                    advanced_union_table_query = [
+                            '( select *  from ( '...
+'select * from Github_Metric union ALL '...
+'select * from MATC_Metric union ALL '...
+'select * from SourceForge_Metric union ALL '... 
+'select * from Others_Metric union ALL '...
+'select * from Tutorial_Metric '...
+') where is_Lib = 0 and substr(Model_Name,1,length(MOdel_name)-4) in (' where_clause ') ) ']
+                        blk_connec_query = ['select sum(SLDiag_Block_count),sum(SCHK_block_count),sum(total_ConnH_cnt) from ', advanced_union_table_query];
+                        solver_type_query = ['select solver_type,count(solver_type) from ',advanced_union_table_query, ' group by solver_type'];
+                        sim_mode_query = ['select sim_mode,count(sim_mode) from ', advanced_union_table_query,' group by sim_mode'];
+                        total_analyzedmdl_query = ['select count(*) from ',advanced_union_table_query];
+                        total_model_compiles = ['select count(*) from ',advanced_union_table_query,' where compiles = 1'];
+                        total_hierarchial_model_query = ['select count(*) from ',advanced_union_table_query,' where Hierarchy_depth>0'];
+                        most_frequentlused_blocks_query = [' select BLK_TYPE,sum(count)  as c from ( ',...
+                                                           ' select * from github_Block_Info where (File_id,Model_Name) in (',...
+                                                           ' select File_id,Model_Name from ',advanced_union_table_query,...
+                                                           ' )',...
+                                                           'union ',...
+                                                           ' select * from matc_Block_Info where (File_id,Model_Name) in (',...
+                                                           ' select File_id,Model_Name from ',advanced_union_table_query,...
+                                                           ' )',...
+                                               ' ) group by BLK_TYPE order by  c desc'];
+             
                
             
             obj.WriteLog(sprintf("Fetching Total Analyzed model of %s choice with query \n %s",choice,total_analyzedmdl_query));
@@ -1054,6 +1181,8 @@ classdef model_metric < handle
             res.most_freq_blks = most_15_freq_used_blks;
         
         end
+        
+        
         function grand_total_analyze_metric(obj)
             github = obj.total_analyze_metric('Github_metric');
             matc = obj.total_analyze_metric('MATC_metric');
@@ -1077,8 +1206,56 @@ classdef model_metric < handle
             end
             
       
-         end
+        end
+        function helper_simple(obj)
+            
+            query = ['select distinct substr(Model_Name,1,length(MOdel_name)-4) from ( '...
+'select * from Github_Metric union ALL '...
+'select * from MATC_Metric union ALL '...
+'select * from SourceForge_Metric union ALL '... 
+'select * from Others_Metric union ALL '...
+'select * from Tutorial_Metric '...
+') where is_Lib = 0']
+            model = fetch(obj.conn, query);
+            model = cellfun(@(x)string(x),model);
 
+            loc = '/home/sls6964xx/Desktop/UtilityProgramNConfigurationFile/CollectingSimulinkModels/ShafiulsCorpusMeta/List of all models - Sheet1.csv'
+            m = readtable(loc);
+            data = table2cell(m);
+            tutorial  = data(:,1);
+            tutorial = tutorial(~cellfun('isempty',tutorial));
+            tutorial =  cellfun(@(x)string(strrep(x,"'","")),tutorial);
+            simple = data(:,2);
+            simple = simple(~cellfun('isempty',simple));
+            simple =  cellfun(@(x)string(strrep(x,"'","")),simple);
+            
+            advanced = data(:,3);
+            advanced = advanced(~cellfun('isempty',advanced));
+            advanced =  cellfun(@(x)string(strrep(x,"'","")),advanced);
+            
+            other = data(:,4);
+            other = other(~cellfun('isempty',other));
+            other =  cellfun(@(x)string(strrep(x,"'","")),other);
+           
+            simple_intersect = intersect((simple),(model),'rows');
+            advanc_intersect = intersect((advanced),(model),'rows');
+            tutorial_intersect = intersect((tutorial),(model),'rows');
+            other_intersect = intersect((other),(model),'rows');
+            total_intersect = length(simple_intersect)+length(advanc_intersect)+length(tutorial_intersect)+length(other_intersect);
+            obj.WriteLog(sprintf("Total Intersection in models : %d", total_intersect))
+            
+            [other_diff,i] = setdiff((other),(model)); %8 difference Total : 7 model files from 1 missing project. Other 1 has a different name
+            
+            [tutot_diff,i] = setdiff((tutorial),(model));
+            
+            [simple_diff,i] = setdiff((simple),(model));%23 total difference : 16 diff due to name changes in updated project. 
+            
+            [advanced_diff,i] = setdiff((advanced),(model)); %14 difference : 5 diff due to models removed from project and updated with new one
+            
+            obj.WriteLog(sprintf("Total Difference in models : %d", sum(length(other_diff)+length(tutot_diff)+length(simple_diff)+length(advanced_diff))))
+            
+        % to check the number of models from meta data to 
+        end
     end
     
         
