@@ -111,26 +111,55 @@ methods
             output_bol= 1;
         end
         
-        function [blk_lst_this_lvl,root_blk] = list_of_blocks_in_this_lvl(obj,all_blocks_in_every_lvl,dpth)
+        function [blk_lst_this_lvl,root_blk] = list_of_blocks_in_this_lvl(obj,model_name, component_in_every_lvl,mdlref_depth_map,dpth)
             blk_lst_this_lvl = {};
             root_blk = {};
-            for i=1:size(all_blocks_in_every_lvl)
-               
+            for i=1:size(component_in_every_lvl)
+                blk_name_of_component =split(string(component_in_every_lvl(i)),"/");
+                blk_name_of_component = blk_name_of_component(end);
+                
                 %https://www.mathworks.com/help/matlab/ref/cellfun.html
-                num_of_bslash = cellfun('length',regexp(all_blocks_in_every_lvl(i),'/')) ;
-                if num_of_bslash == dpth
-                    blk_lst_this_lvl(end+1,1) = all_blocks_in_every_lvl(i);
-                elseif num_of_bslash == dpth-1 
-                    root_blk(end+1,1) = all_blocks_in_every_lvl(i);
+                num_of_bslash = cellfun('length',regexp(component_in_every_lvl(i),'/')) ;
+                if num_of_bslash == dpth - 1 && ~isKey(mdlref_depth_map,(string(component_in_every_lvl(i)))) 
+                    %if (isempty(find_system(model_name,'lookundermasks','all','Name',blk_name_of_component(end))))
+                    %end 
+                    
+                    component_blocks = find_system(component_in_every_lvl(i),'SearchDepth',1,'LookUnderMasks', 'all', 'FollowLinks','off');
+                    for j = 1: length(component_blocks)
+                        if ~ strcmp(component_blocks{j}, component_in_every_lvl(i)) 
+                            blk_lst_this_lvl(end+1,1) = component_blocks(j);
+                        end
+                    end
+                    root_blk(end+1,1) = component_in_every_lvl(i);
+                elseif isKey(mdlref_depth_map,string(component_in_every_lvl(i))) && mdlref_depth_map(string(component_in_every_lvl(i))) == dpth
+                    
+                    mdl_ref_path = find_system(model_name,'lookundermasks','all','Name',string(component_in_every_lvl(i)));
+                    if(isempty(mdl_ref_path))
+                        blk_lst_this_lvl(end+1,1) = component_in_every_lvl(i);
+                    else
+                        blk_lst_this_lvl(end+1,1) = mdl_ref_path;
+                    end
                 end
+                if isKey(mdlref_depth_map,string(component_in_every_lvl(i))) && mdlref_depth_map(string(component_in_every_lvl(i))) == dpth -1 
+                    root_blk(end+1,1) = component_in_every_lvl(i);
+                end
+                
             end
+            blk_lst_this_lvl =  unique(blk_lst_this_lvl,'stable');
+            root_blk =   unique(root_blk,'stable');
         end
+
+    
         
-    %reimplementation of SLforge/Curated corpus recursive function to iterative one to calculate metrics not supported by API
-        function blk_count_this_level = obtain_hierarchy_metrics(obj, model,file_name,mdl_name)
-            all_blocks_in_every_lvl = find_system(model,'SearchDepth',obj.max_depth,'LookUnderMasks', 'all', 'FollowLinks','off');
+    %reimplementation of SLforge/Curated corpus recursive function to
+    %iterative one to calculate metrics not supported by API. Also removed
+    %max depth hyperparameters and support counting of model reference
+    %block counts and line counts
+        function blk_count_this_level = obtain_hierarchy_metrics(obj, model,file_name,mdl_name,component_in_every_lvl,mdlref_depth_map)
+            max_depth_from_api = obj.max_depth;% max_depth api calculated by hacking Simulink Check API. 
+            %all_blocks_in_every_lvl = find_system(model,'SearchDepth',max_depth_from_api,'LookUnderMasks', 'all', 'FollowLinks','off');
             
-            for depth = 1:obj.max_depth
+            for depth = 1:max_depth_from_api
                 blk_count_this_level = 0; 
                 childCount_onthisLevel = 0;%Child models are blocks which are model references and Subsystem (Child Representing blocks)
                 subsystem_count = 0; % subsystem count in this level (subset of childmodels) (NCS)
@@ -138,7 +167,7 @@ methods
                 
                 
                 %Separating the blocks that is in current level from the full list and also return the root model separately. 
-                [blk_lst_this_lvl,root_blk] = obj.list_of_blocks_in_this_lvl(all_blocks_in_every_lvl,depth);
+                [blk_lst_this_lvl,root_blk] = obj.list_of_blocks_in_this_lvl(model,component_in_every_lvl,mdlref_depth_map,depth);
                 
                 
                 
@@ -159,7 +188,7 @@ methods
                         
                         blockType = get_param(currentBlock, 'blocktype');
                         obj.blockTypeMap.inc(blockType{1,1});
-                
+                        
                         %TODO
                         %libname = obj.get_lib(blockType{1, 1});
 
@@ -177,8 +206,6 @@ methods
                                 modelName = get_param(currentBlock,'ModelName');
                                 %is_model_reused = obj.modelrefMap.contains(modelName);
                                 obj.modelrefMap.inc(modelName{1,1});
-
-                             
                             else % block is subsystem Subsystem
                            
                                 [inner_count,~]  = size(find_system(currentBlock,'SearchDepth',1,'LookUnderMasks', 'all', 'FollowLinks','off'));
@@ -240,6 +267,7 @@ methods
                 unique_lines = 0;
                 unique_line_map = mymap();
                 for i=1:rootCount
+                    
                     lines = find_system(root_blk(i),'SearchDepth','1','FindAll','on', 'LookUnderMasks', 'all', 'FollowLinks','off', 'type','line');
                     for l_i = 1:numel(lines)
                         c_l = get(lines(l_i));
@@ -257,7 +285,7 @@ methods
                     end
                 end
 
-                mapKey = int2str(depth-1);% To make it consistent with the Simulink Check API Hierarchy Depth
+                mapKey = int2str(depth);% To make it consistent with the Simulink Check API Hierarchy Depth
 
                 if blk_count_this_level >0 %If this lvl of the subsystem or model reference contains blocks  
     %                 fprintf('Found %d blocks\n', count);
@@ -300,21 +328,41 @@ methods
     
         end
         
-        
-    function [total_lines_cnt,total_descendant_count,ncs_count,scc_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = populate_hierarchy_info(obj,file_name, mdl_name,depth,schk_blk_count)
-       %this is because simulink check returns depth as 0,1,2 while
-       %find_system requires depth as 1,2,3
-       obj.max_depth = depth+1;
+        function load_reference_model(obj,mdlref_depth_map)
+            mdl= mdlref_depth_map.keys();
+            for i = 1: length(mdl)
+            load_system(mdl(i));
+            end
+        end
+        function close_reference_model(obj,mdlref_depth_map)
+            mdl= mdlref_depth_map.keys();
+            for i = 1: length(mdl)
+            close_system(mdl(i));
+            end
+        end
+    function [total_lines_cnt,total_descendant_count,ncs_count,scc_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = populate_hierarchy_info(obj,file_name, mdl_name,depth,component_in_every_lvl,mdlref_depth_map)
+       obj.max_depth = depth;
        obj.resetting_maps_variables();
        model_name = strrep(mdl_name,'.slx','');
        model_name = strrep(model_name,'.mdl','');
-        
-        obj.obtain_hierarchy_metrics(model_name,file_name,mdl_name); % filename and mdl_name is to populate subsystem info table. 
-        
+       
+       
+        try
+            obj.load_reference_model(mdlref_depth_map);
+            obj.obtain_hierarchy_metrics(model_name,file_name,mdl_name,component_in_every_lvl,mdlref_depth_map); % filename and mdl_name is to populate subsystem info table. 
+            obj.close_reference_model(mdlref_depth_map);
+        catch ME
+            obj.close_reference_model(mdlref_depth_map);
+              obj.WriteLog(sprintf("ERROR Obtaining Hierarchy metric for  %s",mdl_name));                    
+            obj.WriteLog(['ERROR ID : ' ME.identifier]);
+            obj.WriteLog(['ERROR MSG : ' ME.message]);
+            return;
+           %rmpath(genpath(folder_path));
+        end
         %Writing To Database
         obj.WriteLog(sprintf("Writing to %s",obj.table_name))
         try
-            for i = 0:obj.max_depth-1
+            for i = 1:obj.max_depth
                  obj.WriteLog(sprintf("FileName = %d modelName = %s hierarchyLvl = %d BlockCount = %d ConnectionCount = %d HConnCount = %d ChildModelCount = %d ",...
                                 file_name,mdl_name,i,...
                               obj.blk_count_this_levelMap.get(int2str(i)),obj.connectionsLevelMap.get(int2str(i)),obj.hconns_level_map.get(int2str(i))...
@@ -354,6 +402,7 @@ methods
         
          modelrefMap_reused_val = mdlref_val_str; % list of mdlref used and its count
          unique_mdl_ref_count = length(mdlref_key);
+  
       
     end
 end

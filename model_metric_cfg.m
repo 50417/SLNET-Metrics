@@ -1,8 +1,8 @@
 classdef model_metric_cfg < handle
     properties(Constant)
     %GitHub and MATLAB Central choose one 
-        %project_source = 'GitHub';
-        project_source = 'MATC';
+        project_source = 'GitHub';
+        %aproject_source = 'MATC';
         %project_source = 'SourceForge'
         %project_source = 'Others'
         %project_source = 'Tutorial'
@@ -21,10 +21,10 @@ classdef model_metric_cfg < handle
 
        %source_dir = [filesep 'home' filesep 'sls6964xx' filesep 'Downloads' filesep 'SLNet_v1_overlapped'  filesep 'SLNET_GitHub']
        %source_dir = [filesep 'home' filesep 'sls6964xx' filesep 'Downloads' filesep 'SLNet_v1_overlapped'  filesep 'SLNET_MATLABCentral']
-       %source_dir = [filesep 'home' filesep 'sls6964xx' filesep 'Downloads' filesep 'SLNet_v1_overlapped'  filesep 'Test']
+       source_dir = [filesep 'home' filesep 'sls6964xx' filesep 'Downloads' filesep 'SLNet_v1_overlapped'  filesep 'Test']
        
        %source_dir = [filesep 'home' filesep 'sls6964xx' filesep 'Desktop' filesep 'UtilityProgramNConfigurationFile' filesep 'SLNet-Miner' filesep 'Shafiul_sourceForge']
-       source_dir = [filesep 'home' filesep 'sls6964xx' filesep 'Desktop' filesep 'UtilityProgramNConfigurationFile' filesep 'SLNet-Miner' filesep 'ABC']
+       %source_dir = [filesep 'home' filesep 'sls6964xx' filesep 'Desktop' filesep 'UtilityProgramNConfigurationFile' filesep 'SLNet-Miner' filesep 'ABC']
        %source_dir = [filesep 'home' filesep 'sls6964xx' filesep 'Downloads' filesep 'SLNet_v1'  filesep 'SLNET_MATLABCentral']
        
        %directory where the sqlite database which contains metadata tables
@@ -37,7 +37,8 @@ classdef model_metric_cfg < handle
         %dbfile = [filesep 'home' filesep 'sls6964xx' filesep 'Downloads' filesep 'SLNet_v1_overlapped'   filesep 'slnet_v1_hierarchyfix.sqlite']
         %dbfile = [filesep 'home' filesep 'sls6964xx' filesep 'Downloads' filesep 'SLNet_v1_overlapped'   filesep 'slnet_v1.sqlite']
         %dbfile = [filesep 'home' filesep 'sls6964xx' filesep 'Downloads' filesep 'SLNet_v1_overlapped'   filesep 'slnet_v1_hierarchyfix_scc.sqlite']
-        dbfile = [filesep 'home' filesep 'sls6964xx' filesep 'Desktop' filesep 'UtilityProgramNConfigurationFile' filesep 'SLNet-Miner' filesep 'xyz.sqlite']
+        dbfile = [filesep 'home' filesep 'sls6964xx' filesep 'Downloads' filesep 'SLNet_v1_overlapped'   filesep 'slnet_v1_hierarchyfix_scc_test.sqlite']
+        %dbfile = [filesep 'home' filesep 'sls6964xx' filesep 'Desktop' filesep 'UtilityProgramNConfigurationFile' filesep 'SLNet-Miner' filesep 'xyz.sqlite']
         %dbfile = [filesep 'home' filesep 'sls6964xx' filesep 'Desktop' filesep 'UtilityProgramNConfigurationFile' filesep 'SLNet-Miner' filesep 'abc.sqlite']
         
         %New/Existing table Where Simulink model metrics(Block_Count) will be stored
@@ -57,8 +58,10 @@ classdef model_metric_cfg < handle
         subsys_info_foreign_table_name
 
         %DEBUG MODE: 
-        DROP_TABLES = false %drop all existing tables and calculates metrics from scratch 
+        DROP_TABLES = true %drop all existing tables and calculates metrics from scratch 
         DEBUG = true %debug mode % prints to the console if TRUE
+        
+        PROCESS_LIBRARY = false % non compiled metrics can be extracted from the library. 
         %optional
         tmp_unzipped_dir = ''; %Stores UnZipped Files in this directory % Defaults to  current directory with folder tmp/
         %unused right now

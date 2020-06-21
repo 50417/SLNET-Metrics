@@ -12,13 +12,13 @@ classdef model_metric < handle
         lvl_info;
         
         conn;
-        colnames = {'FILE_ID','Model_Name','is_Lib','SCHK_Block_count','SLDiag_Block_count','SubSystem_count_Top',...
+        colnames = {'FILE_ID','Model_Name','is_test','is_Lib','SCHK_Block_count','SLDiag_Block_count','SubSystem_count_Top',...
             'Agg_SubSystem_count','Hierarchy_depth','LibraryLinked_Count',...,
             'compiles','CComplexity',...
             'Sim_time','Compile_time','Alge_loop_Cnt','target_hw','solver_type','sim_mode'...
             ,'total_ConnH_cnt','total_desc_cnt','ncs_cnt','scc_cnt','unique_sfun_count','sfun_nam_count'...
             ,'mdlref_nam_count','unique_mdl_ref_count'};
-        coltypes = {'INTEGER','VARCHAR','Boolean','NUMERIC','NUMERIC','NUMERIC','NUMERIC',...,
+        coltypes = {'INTEGER','VARCHAR','Numeric','Boolean','NUMERIC','NUMERIC','NUMERIC','NUMERIC',...,
             'NUMERIC','NUMERIC','Boolean','NUMERIC','NUMERIC','NUMERIC','NUMERIC','VARCHAR','VARCHAR','VARCHAR'...
             ,'NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC','VARCHAR'...
             ,'VARCHAR','NUMERIC'};
@@ -137,14 +137,14 @@ classdef model_metric < handle
             exec(obj.conn,create_metric_table);
         end
         %Writes to database 
-        function output_bol = write_to_database(obj,id,simulink_model_name,isLib,schK_blk_count,block_count,...
+        function output_bol = write_to_database(obj,id,simulink_model_name,isTest,isLib,schK_blk_count,block_count,...
                                             subsys_count,agg_subsys_count,depth,linkedcount,compiles, cyclo,...
                                             sim_time,compile_time,num_alge_loop,target_hw,solver_type,sim_mode,...
                                             total_lines_cnt,total_descendant_count,ncs_count,scc_count,unique_sfun_count,...
                                             sfun_reused_key_val,...
                                             modelrefMap_reused_val,unique_mdl_ref_count)%block_count)
             insert(obj.conn,obj.table_name,obj.colnames, ...
-                {id,simulink_model_name,isLib,schK_blk_count,block_count,subsys_count,...
+                {id,simulink_model_name,isTest,isLib,schK_blk_count,block_count,subsys_count,...
                 agg_subsys_count,depth,linkedcount,compiles,cyclo,...
                 sim_time,compile_time,num_alge_loop,target_hw,solver_type,sim_mode...
                 ,total_lines_cnt,total_descendant_count,ncs_count,scc_count,unique_sfun_count,...
@@ -391,6 +391,27 @@ classdef model_metric < handle
                                 continue;
                                %rmpath(genpath(folder_path));
                            end
+                           if ~obj.cfg.PROCESS_LIBRARY
+                               isLib = bdIsLibrary(model_name);% Generally Library are precompiled:  https://www.mathworks.com/help/simulink/ug/creating-block-libraries.html
+                               if isLib
+                                   obj.WriteLog(sprintf('%s is a library. Skipping calculating cyclomatic metric/compile check',model_name));
+                                   obj.close_the_model(model_name);
+                                   try
+                                   obj.write_to_database(id,char(m(end)),-1,1,-1,-1,...
+                                       -1,-1,-1,-1,-1,-1 ...
+                                   ,-1,-1,-1,'N/A','N/A','N/A'...
+                                            ,-1,-1,-1,-1,-1 ...
+                                            ,'N/A','N/A',-1);%blk_cnt);
+                                   catch ME
+                                       obj.WriteLog(sprintf('ERROR Inserting to Database %s',model_name));                    
+                                        obj.WriteLog(['ERROR ID : ' ME.identifier]);
+                                     obj.WriteLog(['ERROR MSG : ' ME.message]);
+                                   end
+                                   continue
+                               end
+                           end
+                           
+                           isTest = -1;
 
                            if ~isempty(sltest.harness.find(model_name,'SearchDepth',15))
                                 obj.WriteLog(sprintf('File Id %d : model : %s has %d test harness',...
@@ -404,13 +425,13 @@ classdef model_metric < handle
                                obj.WriteLog([' Number of blocks(BASED ON sLDIAGNOSTIC TOOL) of' model_name ':' num2str( blk_cnt)]);
 
                               obj.WriteLog(['Calculating  metrics  based on Simulink Check API of :' model_name]);
-                               [schk_blk_count,agg_subsys_count,subsys_count,depth,liblink_count]=(obj.extract_metrics(model_name));
-                               obj.WriteLog(sprintf(" id = %d Name = %s BlockCount= %d AGG_SubCount = %d SubSys_Count=%d Hierarchial_depth=%d LibLInkedCount=%d",...
+                               [schk_blk_count,agg_subsys_count,subsys_count,subsys_depth,liblink_count,depth,component_in_every_lvl,mdlref_depth_map]=(obj.extract_metrics(model_name));
+                               obj.WriteLog(sprintf(" id = %d Name = %s BlockCount= %d AGG_SubCount = %d SubSys_Count=%d Subsystem_depth=%d LibLInkedCount=%d",...
                                    id,char(m(end)),blk_cnt, agg_subsys_count,subsys_count,depth,liblink_count));
                                
                                
                                obj.WriteLog(['Populating level wise | hierarchial info of ' model_name]);
-                               [total_lines_cnt,total_descendant_count,ncs_count,scc_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = obj.lvl_info.populate_hierarchy_info(id, char(m(end)),depth,schk_blk_count);
+                               [total_lines_cnt,total_descendant_count,ncs_count,scc_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = obj.lvl_info.populate_hierarchy_info(id, char(m(end)),depth,component_in_every_lvl,mdlref_depth_map);
                                obj.WriteLog([' level wise Info Updated of' model_name]);
                                obj.WriteLog(sprintf("Lines= %d Descendant count = %d NCS count=%d Unique S fun count=%d",...
                                total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count));
@@ -426,18 +447,19 @@ classdef model_metric < handle
                               
                            catch ME
                              
-                               obj.WriteLog(sprintf('ERROR Calculating non compiled metrics for  %s',model_name));                    
+                               obj.WriteLog(sprintf('ERROR Calculating non compiled metrics for  %s. Database not updated',model_name));                    
                                 obj.WriteLog(['ERROR ID : ' ME.identifier]);
                                 obj.WriteLog(['ERROR MSG : ' ME.message]);
                                 continue;
                                %rmpath(genpath(folder_path));
-                           end
+                            end
+                           if obj.cfg.PROCESS_LIBRARY
                                isLib = bdIsLibrary(model_name);% Generally Library are precompiled:  https://www.mathworks.com/help/simulink/ug/creating-block-libraries.html
                                if isLib
                                    obj.WriteLog(sprintf('%s is a library. Skipping calculating cyclomatic metric/compile check',model_name));
                                    obj.close_the_model(model_name);
                                    try
-                                   obj.write_to_database(id,char(m(end)),1,schk_blk_count,blk_cnt,...
+                                   obj.write_to_database(id,char(m(end)),-1,1,schk_blk_count,blk_cnt,...
                                        subsys_count,agg_subsys_count,depth,liblink_count,-1,-1 ...
                                    ,-1,-1,-1,'N/A','N/A','N/A'...
                                             ,-1,-1,-1,-1,-1 ...
@@ -449,11 +471,12 @@ classdef model_metric < handle
                                    end
                                    continue
                                end
+                           end
                                
                                cyclo_complexity = -1; % If model compile fails. cant check cyclomatic complexity. Hence -1 
                                compiles = 0;
                                compile_time = -1;
-                               num_alge_loop = 0;
+                               num_alge_loop = -1;
                                try                               
                                   obj.WriteLog(sprintf('Checking if %s compiles?', model_name));
                                    timeout = timer('TimerFcn',' com.mathworks.mde.cmdwin.CmdWinMLIF.getInstance().processKeyFromC(2,67,''C'')','StartDelay',120);
@@ -534,7 +557,7 @@ classdef model_metric < handle
                                %end
                                obj.WriteLog(sprintf("Writing to Database"));
                                try
-                                    success = obj.write_to_database(id,char(m(end)),0,schk_blk_count,blk_cnt,subsys_count,...
+                                    success = obj.write_to_database(id,char(m(end)),isTest,0,schk_blk_count,blk_cnt,subsys_count,...
                                             agg_subsys_count,depth,liblink_count,compiles,cyclo_complexity...
                                             ,simulation_time,compile_time,num_alge_loop,target_hw,solver_type,sim_mode...
                                             ,total_lines_cnt,total_descendant_count,ncs_count,scc_count,unique_sfun_count...
@@ -615,7 +638,7 @@ classdef model_metric < handle
         end
         
         %Calculates model metrics. Models doesnot need to be compilable.
-        function [blk_count,agg_sub_count,subsys_count,subsys_depth,liblink_count] = extract_metrics(obj,model)
+        function [blk_count,agg_sub_count,subsys_count,subsys_depth,liblink_count,hierar_depth,component_in_every_lvl,mdlref_depth_map] = extract_metrics(obj,model)
                 
                
                 
@@ -623,13 +646,15 @@ classdef model_metric < handle
                 metric_engine = slmetric.Engine();
                 %Simulink.BlockDiagram.expandSubsystem(block)
                 setAnalysisRoot(metric_engine, 'Root',  model);
+                % Include referenced models and libraries in the analysis, 
+                %     these properties are on by default
+                    metric_engine.AnalyzeModelReferences = 1;
+                    metric_engine.AnalyzeLibraries = 0;
+                   
                 mData ={'mathworks.metrics.SimulinkBlockCount' ,'mathworks.metrics.SubSystemCount','mathworks.metrics.SubSystemDepth',...
                     'mathworks.metrics.LibraryLinkCount'};
                 execute(metric_engine,mData)
-                % Include referenced models and libraries in the analysis, 
-                %     these properties are on by default
-                   % metric_engine.ModelReferencesSimulationMode = 'AllModes';
-                   % metric_engine.AnalyzeLibraries = 1;
+                
                   res_col = getMetrics(metric_engine,mData,'AggregationDepth','all');
                 count =0;
                 blk_count =0;
@@ -655,6 +680,11 @@ classdef model_metric < handle
                                     depth =results(m).Value;
                                 elseif strcmp(results(m).MetricID,'mathworks.metrics.SimulinkBlockCount') 
                                     blk_count=results(m).AggregatedValue;
+                                    blks_in_all_level = cell(length(results),1);
+                                    for i = 1:length(results)
+                                        blks_in_all_level{i,1} = results(1,i).ComponentPath;
+                                    end
+                                    [hierar_depth,component_in_every_lvl,mdlref_depth_map] = obj.calculate_hierarchy_depth(blks_in_all_level,model);
                                 elseif strcmp(results(m).MetricID,'mathworks.metrics.LibraryLinkCount')%Only for compilable models
                                     liblink_count=results(m).AggregatedValue;
                                 end
@@ -677,6 +707,65 @@ classdef model_metric < handle
                 
        
         end
+        
+        %Calculates hierary depth including model references and subsystem
+        % also returns blk in every lvl sorted by numebr of back slash and mdl_ref_depths.
+        %blk_in_every_lvl is the components which has at least 1 blocks . 
+        %That is why depth = depth + 1
+        function [depth,blk_in_every_lvl,mdlref_depth_map] = calculate_hierarchy_depth(obj,all_blocks_in_every_lvl,model_name)
+            depth = -1;
+            [~,idx]=sort(cellfun(@(x) length(regexp(x,'/')),all_blocks_in_every_lvl));
+            all_blocks_in_every_lvl = all_blocks_in_every_lvl(idx);
+            mdlref_dpth_map = containers.Map();
+            for i=1:size(all_blocks_in_every_lvl)
+                currentBlock =all_blocks_in_every_lvl(i);
+                if strcmp(currentBlock,model_name)
+                    depth = 0;
+                    continue
+                end
+               
+                %https://www.mathworks.com/help/matlab/ref/cellfun.html
+                num_of_bslash = cellfun('length',regexp(currentBlock,'/')) ;
+                if num_of_bslash == 0 
+                    depth = 1;
+                    %mdl_ref_path = find_system(model_name,'lookundermasks','all','Name',string(currentBlock))
+                    %This is a model reference
+                    mdlref_dpth_map(string(currentBlock))=cellfun('length',regexp( find_system(model_name,'lookundermasks','all','Name',string(currentBlock)),'/'));
+                   continue;
+                end
+                name = split(string(currentBlock),"/");
+                if (isempty(find_system(model_name,'lookundermasks','all','Name',name(end))))
+                    mdl_ref_path = keys(mdlref_dpth_map);
+  
+                    for i = 1 : length(mdl_ref_path)
+                        load_system(mdl_ref_path{i});
+                        blk_path = find_system(mdl_ref_path{i},'lookundermasks','all','Name',name(end));
+                        close_system(mdl_ref_path{i});
+                        if(~isempty(blk_path))
+                            break
+                        end
+                    end
+                    %adjust depth 
+                    %search use model reference (i) for its depth and
+                    %blkPath backslash count 
+                    num_of_bslash_mdlref_blk = cellfun('length',regexp(blk_path,'/')) ;
+                    true_depth_of_mdlref_blk = num_of_bslash_mdlref_blk + mdlref_dpth_map(mdl_ref_path{i});
+                    mdlref_dpth_map(string(currentBlock))=true_depth_of_mdlref_blk;
+                    if depth > true_depth_of_mdlref_blk
+                        depth = true_depth_of_mdlref_blk;
+                    end
+                    continue
+                end
+                if num_of_bslash > depth
+                    depth = num_of_bslash; 
+                end  
+            end
+            depth = depth + 1; % blk_in_every_lvl 
+            blk_in_every_lvl = all_blocks_in_every_lvl;
+            mdlref_depth_map  = mdlref_dpth_map;
+            
+        end
+        
         
         %to clean up files MATLAB generates while processing
         function cleanup(obj)
