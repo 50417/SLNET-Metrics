@@ -270,7 +270,10 @@ classdef model_metric < handle
             try
                mdlWks = get_param(model,'ModelWorkspace');
                if ~isempty(mdlWks)
-               clear(mdlWks);
+                   %https://www.mathworks.com/matlabcentral/answers/426-is-the-model-workspace-dirty
+                   %intentiaonally setting it to false to close it. 
+                  mdlWks.isDirty = 0; % Fix for 'The model '' must be compiled before it can be accessed programmatically'
+                     clear(mdlWks);
                end
                obj.WriteLog(sprintf("Closing %s",model));
          
@@ -353,7 +356,7 @@ classdef model_metric < handle
                    if (id==51705) %  % Requires user input: Enter morse code. 
                             continue
                    end
-             
+         
                    %unzip the file TODO: Try CATCH
                    obj.WriteLog('Extracting Files');
                    list_of_unzipped_files = unzip( obj.get_full_path(list_of_zip_files(cnt).name), obj.cfg.tmp_unzipped_dir);
@@ -364,7 +367,7 @@ classdef model_metric < handle
                   % add to the MATLAB search path
                   addpath(genpath(folder_path));%genpath doesnot add folder named private or resources in path as it is keyword in R2019a
                    
-                   
+                  
                   obj.WriteLog('Searching for slx and mdl file Files');
                   for cnt = 1: length(list_of_unzipped_files)
                       file_path = char(list_of_unzipped_files(cnt));
