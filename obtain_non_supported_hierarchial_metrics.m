@@ -145,7 +145,7 @@ methods
                         end
                         root_blk(end+1,1) = mdlref_comp(p);
                  end
-                 
+                   %{ 
                 main_comp_cur_lvl = obj.get_modelcomponent(component_in_every_lvl,dpth);
                 mdlref_com_cur_lvl = obj.get_modelcomponent(mdlref_depth_map,dpth);
                 
@@ -158,7 +158,7 @@ methods
                  for p = 1: c
                     blk_lst_this_lvl(end+1,1) = mdlref_com_cur_lvl(p);
                 end
-                 %{
+              
                 
                 
                 blk_name_of_component = get_param(component_in_every_lvl(i),'Name');
