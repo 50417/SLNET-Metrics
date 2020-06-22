@@ -315,7 +315,7 @@ classdef model_metric < handle
            %Loop over each Zip File 
            for cnt = 1 : size(list_of_zip_files)
               
-                    
+                    test_harness = struct([]);
 
                     name =strtrim(char(list_of_zip_files(cnt).name));  
               
@@ -451,6 +451,7 @@ classdef model_metric < handle
                             isTest = -1;
 
                            if ~isempty(sltest.harness.find(model_name,'SearchDepth',depth))
+                               test_harness = [test_harness,sltest.harness.find(model_name,'SearchDepth',depth)];
                                 obj.WriteLog(sprintf('File Id %d : model : %s has %d test harness',...
                                     id, char(m(end))  ,length(sltest.harness.find(model_name,'SearchDepth',depth))));
                             end
@@ -589,13 +590,43 @@ classdef model_metric < handle
                                 
                 end
                                 disp(' ')
-                            
+                obj.update_test_flag(test_harness,id);            
                 processed_file_count=processed_file_count+1;
 
            end
            obj.WriteLog("Cleaning up Tmp files")
            obj.cleanup()
    
+        end
+        
+        function sucess = update_test_flag(obj,test_harness,id)
+        %metrics cannot be extracted using Simulink Check API since they
+        %are test harness. Hence we insert the model new table.
+           obj.WriteLog(sprintf("Writing to Database"));
+           if isempty(test_harness)
+               obj.WriteLog(sprintf('Empty Test Harness. Returning'));
+               return;
+           end
+           [r,c] = size(test_harness);
+           
+           try
+              for i = 1: c
+                success = obj.write_to_database(id,test_harness(i).name,1,0,-1,-1,-1,...
+                        -1,-1,-1,-1,-1,...
+                        -1,-1,-1,'N/A','N/A','N/A',...
+                        -1,-1,-1,-1,-1,...
+                        'N/A',...
+                        'N/A',-1);%blk_cnt);
+              end
+           catch ME
+                obj.WriteLog(sprintf('ERROR Inserting test harness to Database %s',test_harness(i).name));                    
+                obj.WriteLog(['ERROR ID : ' ME.identifier]);
+                obj.WriteLog(['ERROR MSG : ' ME.message]);
+           end
+           if success ==1
+               obj.WriteLog(sprintf("Successful Insert to Database"));
+               success = 0;
+           end
         end
      
         
