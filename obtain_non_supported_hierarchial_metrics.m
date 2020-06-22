@@ -4,8 +4,8 @@ properties
     foreign_table_name;
     cfg;  
     conn;
-    colnames = {'File_id','Model_Name','Depth','Block_count','Conn_count_no_hidden','Conn_count_hidden_only','Child_model_count'};
-    coltypes = {'NUMERIC','VARCHAR','NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC'};
+    colnames = {'File_id','Model_Name','file_path','Depth','Block_count','Conn_count_no_hidden','Conn_count_hidden_only','Child_model_count'};
+    coltypes = {'NUMERIC','VARCHAR','VARCHAR','NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC'};
     blk_count;
     
     subsys_info; 
@@ -81,7 +81,7 @@ methods
                     obj.colnames(i), " ",obj.coltypes(i) ) ;
             end
            create_metric_table = strcat("create table IF NOT EXISTS ", obj.table_name ...
-            ,'( M_ID INTEGER primary key autoincrement ,', cols  ,",  CONSTRAINT UPair UNIQUE(File_id,Model_Name,Depth),CONSTRAINT FK FOREIGN KEY(File_id) REFERENCES ", obj.foreign_table_name...
+            ,'( M_ID INTEGER primary key autoincrement ,', cols  ,",  CONSTRAINT UPair UNIQUE(File_id,Model_Name,Depth,file_path),CONSTRAINT FK FOREIGN KEY(File_id) REFERENCES ", obj.foreign_table_name...
                  ,'(id))');
         
             
@@ -104,10 +104,10 @@ methods
         end
         
         %Writes to database 
-        function output_bol = write_to_database(obj,id,model_name,Depth,Block_count,Conn_count_no_hidden,Conn_count_hidden_only,Child_model_count)%block_count)
+        function output_bol = write_to_database(obj,id,model_name,file_path,Depth,Block_count,Conn_count_no_hidden,Conn_count_hidden_only,Child_model_count)%block_count)
                                         
             insert(obj.conn,obj.table_name,obj.colnames, ...
-                {id,model_name,Depth,Block_count,Conn_count_no_hidden,Conn_count_hidden_only,Child_model_count});
+                {id,model_name,file_path,Depth,Block_count,Conn_count_no_hidden,Conn_count_hidden_only,Child_model_count});
             output_bol= 1;
         end
         
@@ -168,7 +168,7 @@ methods
     %iterative one to calculate metrics not supported by API. Also removed
     %max depth hyperparameters and support counting of model reference
     %block counts and line counts
-        function blk_count_this_level = obtain_hierarchy_metrics(obj, model,file_name,mdl_name,component_in_every_lvl,mdlref_depth_map)
+        function blk_count_this_level = obtain_hierarchy_metrics(obj, model,file_name,mdl_name,component_in_every_lvl,mdlref_depth_map,file_path)
             max_depth_from_api = obj.max_depth;% max_depth api calculated by hacking Simulink Check API. 
             %all_blocks_in_every_lvl = find_system(model,'SearchDepth',max_depth_from_api,'LookUnderMasks', 'all', 'FollowLinks','off');
             
@@ -229,7 +229,7 @@ methods
                                     % underlying implementation
                                     %Writing to a database 
                                     obj.WriteLog(sprintf("Populating Subsystem Info Table "))
-                                    obj.subsys_info.write_to_database(file_name,mdl_name,depth,currentBlock,inner_count-1);%inner_count-1 to skip the root model
+                                    obj.subsys_info.write_to_database(file_name,mdl_name,file_path,depth,currentBlock,inner_count-1);%inner_count-1 to skip the root model
                                     childCount_onthisLevel=childCount_onthisLevel+1;
                                     subsystem_count = subsystem_count + 1;
                                 end
@@ -353,7 +353,7 @@ methods
             close_system(mdl(i));
             end
         end
-    function [total_lines_cnt,total_descendant_count,ncs_count,scc_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = populate_hierarchy_info(obj,file_name, mdl_name,depth,component_in_every_lvl,mdlref_depth_map)
+    function [total_lines_cnt,total_descendant_count,ncs_count,scc_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = populate_hierarchy_info(obj,file_name, mdl_name,depth,component_in_every_lvl,mdlref_depth_map,file_path)
        obj.max_depth = depth;
        obj.resetting_maps_variables();
        model_name = strrep(mdl_name,'.slx','');
@@ -362,7 +362,7 @@ methods
        
         try
             obj.load_reference_model(mdlref_depth_map);
-            obj.obtain_hierarchy_metrics(model_name,file_name,mdl_name,component_in_every_lvl,mdlref_depth_map); % filename and mdl_name is to populate subsystem info table. 
+            obj.obtain_hierarchy_metrics(model_name,file_name,mdl_name,component_in_every_lvl,mdlref_depth_map,file_path); % filename and mdl_name is to populate subsystem info table. 
             obj.close_reference_model(mdlref_depth_map);
         catch ME
             obj.close_reference_model(mdlref_depth_map);
@@ -381,7 +381,7 @@ methods
                               obj.blk_count_this_levelMap.get(int2str(i)),obj.connectionsLevelMap.get(int2str(i)),obj.hconns_level_map.get(int2str(i))...
                              ,obj.childModelPerLevelMap.get(int2str(i))))
 
-                obj.write_to_database(file_name,mdl_name,i,...
+                obj.write_to_database(file_name,mdl_name,file_path,i,...
                               obj.blk_count_this_levelMap.get(int2str(i)),obj.connectionsLevelMap.get(int2str(i)),obj.hconns_level_map.get(int2str(i))...
                              ,obj.childModelPerLevelMap.get(int2str(i))); %WARNING childCount_onthisLevel: shouldn't we do this only when blk_count_this_level inside it>0?
 

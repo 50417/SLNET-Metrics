@@ -7,8 +7,8 @@ classdef subsystem_info < handle
         foreign_table_name;
         cfg;  
         conn;
-        colnames = {'File_id','Model_Name','Depth','Subsystem','Block_count'};
-        coltypes = {'NUMERIC','VARCHAR','NUMERIC','VARCHAR','NUMERIC'};
+        colnames = {'File_id','Model_Name','file_path','Depth','Subsystem','Block_count'};
+        coltypes = {'NUMERIC','VARCHAR','VARCHAR','NUMERIC','VARCHAR','NUMERIC'};
         blk_count;
 
     
@@ -46,7 +46,7 @@ classdef subsystem_info < handle
                     obj.colnames(i), " ",obj.coltypes(i) ) ;
             end
            create_metric_table = strcat("create table IF NOT EXISTS ", obj.table_name ...
-            ,'( S_ID INTEGER primary key autoincrement ,', cols  ,",  CONSTRAINT UPair UNIQUE(File_id,Model_Name,Depth,Subsystem),CONSTRAINT FK FOREIGN KEY(File_id) REFERENCES ", obj.foreign_table_name...
+            ,'( S_ID INTEGER primary key autoincrement ,', cols  ,",  CONSTRAINT UPair UNIQUE(File_id,Model_Name,file_path,Depth,Subsystem),CONSTRAINT FK FOREIGN KEY(File_id) REFERENCES ", obj.foreign_table_name...
                  ,'(id))');
         
             
@@ -69,12 +69,12 @@ classdef subsystem_info < handle
         end
         
         %Writes to database 
-        function output_bol = write_to_database(obj,id,model_name,Depth,subsys,Block_count)
+        function output_bol = write_to_database(obj,id,model_name,file_path,Depth,subsys,Block_count)
             obj.WriteLog(sprintf("File id = %d hierarchyLvl = %d subsys= %s BlockCount = %d",...
                                 id,Depth,subsys{1},Block_count ));
             try
                 insert(obj.conn,obj.table_name,obj.colnames, ...
-                    {id,model_name,Depth,subsys{1},Block_count});
+                    {id,model_name,file_path,Depth,subsys{1},Block_count});
                 output_bol= 1;
              
             catch ME

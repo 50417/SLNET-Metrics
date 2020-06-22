@@ -4,8 +4,8 @@ properties
     foreign_table_name;
     cfg;  
     conn;
-    colnames = {'File_ID','Model_Name','BLK_TYPE','Count'};
-    coltypes = {'NUMERIC','VARCHAR','VARCHAR','NUMERIC'};
+    colnames = {'File_ID','Model_Name','file_path','BLK_TYPE','Count'};
+    coltypes = {'NUMERIC','VARCHAR','VARCHAR','VARCHAR','NUMERIC'};
 
     
 end
@@ -42,7 +42,7 @@ methods
                     obj.colnames(i), " ",obj.coltypes(i) ) ;
             end
            create_metric_table = strcat("create table IF NOT EXISTS ", obj.table_name ...
-            ,'( M_ID INTEGER primary key autoincrement ,', cols  ,",CONSTRAINT UPair UNIQUE(File_id,Model_Name,BLK_TYPE), CONSTRAINT FK FOREIGN KEY(File_ID) REFERENCES ", obj.foreign_table_name...
+            ,'( M_ID INTEGER primary key autoincrement ,', cols  ,",CONSTRAINT UPair UNIQUE(File_id,Model_Name,file_path,BLK_TYPE), CONSTRAINT FK FOREIGN KEY(File_ID) REFERENCES ", obj.foreign_table_name...
                  ,'(id))');
          
           
@@ -65,21 +65,21 @@ methods
         end
         
         %Writes to database 
-        function output_bol = write_to_database(obj,id,model_name,blk_type,block_count)%block_count)
+        function output_bol = write_to_database(obj,id,model_name,file_path,blk_type,block_count)%block_count)
                                         
             insert(obj.conn,obj.table_name,obj.colnames, ...
-                {id,model_name,blk_type,block_count});
+                {id,model_name,file_path,blk_type,block_count});
             output_bol= 1;
         end
         
         
-    function success = populate_block_info(obj,file_name, mdl_name,blk_type_count)
+    function success = populate_block_info(obj,file_name, mdl_name,blk_type_count,file_path)
         blk_type_keys = blk_type_count.keys();
         obj.WriteLog(sprintf("Writing to %s",obj.table_name))
         try 
         for K = 1 :length(blk_type_keys)
             obj.WriteLog(sprintf("FileName = %d modelName = %s BlockType = %s BlockCount = %d ",file_name,mdl_name,blk_type_keys{K},blk_type_count.get(blk_type_keys{K})))
-            obj.write_to_database(file_name,mdl_name,blk_type_keys{K},blk_type_count.get(blk_type_keys{K}));
+            obj.write_to_database(file_name,mdl_name,file_path,blk_type_keys{K},blk_type_count.get(blk_type_keys{K}));
         end
          catch ME
                

@@ -12,13 +12,13 @@ classdef model_metric < handle
         lvl_info;
         
         conn;
-        colnames = {'FILE_ID','Model_Name','is_test','is_Lib','SCHK_Block_count','SLDiag_Block_count','SubSystem_count_Top',...
+        colnames = {'FILE_ID','Model_Name','file_path','is_test','is_Lib','SCHK_Block_count','SLDiag_Block_count','SubSystem_count_Top',...
             'Agg_SubSystem_count','Hierarchy_depth','LibraryLinked_Count',...,
             'compiles','CComplexity',...
             'Sim_time','Compile_time','Alge_loop_Cnt','target_hw','solver_type','sim_mode'...
             ,'total_ConnH_cnt','total_desc_cnt','ncs_cnt','scc_cnt','unique_sfun_count','sfun_nam_count'...
             ,'mdlref_nam_count','unique_mdl_ref_count'};
-        coltypes = {'INTEGER','VARCHAR','Numeric','Boolean','NUMERIC','NUMERIC','NUMERIC','NUMERIC',...,
+        coltypes = {'INTEGER','VARCHAR','VARCHAR','Numeric','Boolean','NUMERIC','NUMERIC','NUMERIC','NUMERIC',...,
             'NUMERIC','NUMERIC','Boolean','NUMERIC','NUMERIC','NUMERIC','NUMERIC','VARCHAR','VARCHAR','VARCHAR'...
             ,'NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC','VARCHAR'...
             ,'VARCHAR','NUMERIC'};
@@ -126,7 +126,7 @@ classdef model_metric < handle
             ,'( ID INTEGER primary key autoincrement ,', cols  ,...
             ", CONSTRAINT FK FOREIGN KEY(FILE_ID) REFERENCES ", obj.foreign_table_name...
                  ,'(id) ,'...
-                ,'CONSTRAINT UPair  UNIQUE(FILE_ID, Model_Name) )');
+                ,'CONSTRAINT UPair  UNIQUE(FILE_ID, Model_Name,file_path) )');
             
             if obj.cfg.DROP_TABLES
                 obj.WriteLog(sprintf("Dropping %s",obj.table_name))
@@ -137,14 +137,14 @@ classdef model_metric < handle
             exec(obj.conn,create_metric_table);
         end
         %Writes to database 
-        function output_bol = write_to_database(obj,id,simulink_model_name,isTest,isLib,schK_blk_count,block_count,...
+        function output_bol = write_to_database(obj,id,simulink_model_name,file_path, isTest,isLib,schK_blk_count,block_count,...
                                             subsys_count,agg_subsys_count,depth,linkedcount,compiles, cyclo,...
                                             sim_time,compile_time,num_alge_loop,target_hw,solver_type,sim_mode,...
                                             total_lines_cnt,total_descendant_count,ncs_count,scc_count,unique_sfun_count,...
                                             sfun_reused_key_val,...
                                             modelrefMap_reused_val,unique_mdl_ref_count)%block_count)
             insert(obj.conn,obj.table_name,obj.colnames, ...
-                {id,simulink_model_name,isTest,isLib,schK_blk_count,block_count,subsys_count,...
+                {id,simulink_model_name,file_path,isTest,isLib,schK_blk_count,block_count,subsys_count,...
                 agg_subsys_count,depth,linkedcount,compiles,cyclo,...
                 sim_time,compile_time,num_alge_loop,target_hw,solver_type,sim_mode...
                 ,total_lines_cnt,total_descendant_count,ncs_count,scc_count,unique_sfun_count,...
@@ -152,9 +152,9 @@ classdef model_metric < handle
                 ,modelrefMap_reused_val,unique_mdl_ref_count});%block_count});
             output_bol= 1;
         end
-        %gets File Ids and model name from table
-        function results = fetch_file_ids_model_name(obj)
-            sqlquery = ['SELECT file_id,model_name FROM ' obj.table_name];
+        %gets File Ids and model name and path from table
+        function results = fetch_unique_identifier(obj)
+            sqlquery = ['SELECT file_id,model_name,file_path FROM ' obj.table_name];
             results = fetch(obj.conn,sqlquery);
             
             %max(data)
@@ -164,11 +164,12 @@ classdef model_metric < handle
         %avoid recalculating the metrics
         function unique_id_mdl = get_database_content(obj)
             
-            file_id_n_model = obj.fetch_file_ids_model_name();
-            unique_id_mdl = string.empty(0,length(file_id_n_model));
+            file_id_n_model = obj.fetch_unique_identifier();
+            [r,c]= size(file_id_n_model)
+            unique_id_mdl = string.empty(0,r);
             for i = 1 : length(file_id_n_model)
                 %https://www.mathworks.com/matlabcentral/answers/350385-getting-integer-out-of-cell   
-                unique_id_mdl(i) = strcat(num2str(file_id_n_model{i,1}),file_id_n_model(i,2));
+                unique_id_mdl(i) = strcat(num2str(file_id_n_model{i,1}),file_id_n_model(i,2),file_id_n_model(i,3));
             
             end
          
@@ -365,8 +366,10 @@ classdef model_metric < handle
                   for cnt = 1: length(list_of_unzipped_files)
                       file_path = char(list_of_unzipped_files(cnt));
                       
+                      
                        if endsWith(file_path,"slx") | endsWith(file_path,"mdl")
                            m= split(file_path,filesep);
+                          
                            
                            %m(end); log
                            %disp(list_of_unzipped_files(cnt));
@@ -376,13 +379,13 @@ classdef model_metric < handle
                            model_name = strrep(char(m(end)),'.slx','');
                            model_name = strrep(model_name,'.mdl','');
                           %Skip if Id and model name already in database 
-                            if(~isempty(find(file_id_mdl_array==strcat(num2str(id),char(m(end))), 1)))
+                            if(~isempty(find(file_id_mdl_array==strcat(num2str(id),char(m(end)),file_path), 1)))
                                obj.WriteLog(sprintf('File Id %d %s already processed. Skipping', id, char(m(end)) ));
                                 continue
                             end
                             
                            try
-                               load_system(model_name);
+                               load_system(file_path);
                                obj.WriteLog(sprintf(' %s loaded',model_name));      
                            catch ME
                                obj.WriteLog(sprintf('ERROR loading %s',model_name));                    
@@ -397,7 +400,7 @@ classdef model_metric < handle
                                    obj.WriteLog(sprintf('%s is a library. Skipping calculating cyclomatic metric/compile check',model_name));
                                    obj.close_the_model(model_name);
                                    try
-                                   obj.write_to_database(id,char(m(end)),-1,1,-1,-1,...
+                                   obj.write_to_database(id,char(m(end)),file_path,-1,1,-1,-1,...
                                        -1,-1,-1,-1,-1,-1 ...
                                    ,-1,-1,-1,'N/A','N/A','N/A'...
                                             ,-1,-1,-1,-1,-1 ...
@@ -425,7 +428,7 @@ classdef model_metric < handle
                                
                                
                                obj.WriteLog(['Populating level wise | hierarchial info of ' model_name]);
-                               [total_lines_cnt,total_descendant_count,ncs_count,scc_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = obj.lvl_info.populate_hierarchy_info(id, char(m(end)),depth,component_in_every_lvl,mdlref_depth_map);
+                               [total_lines_cnt,total_descendant_count,ncs_count,scc_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = obj.lvl_info.populate_hierarchy_info(id, char(m(end)),depth,component_in_every_lvl,mdlref_depth_map,file_path);
                                obj.WriteLog([' level wise Info Updated of' model_name]);
                                obj.WriteLog(sprintf("Lines= %d Descendant count = %d NCS count=%d Unique S fun count=%d",...
                                total_lines_cnt,total_descendant_count,ncs_count,unique_sfun_count));
@@ -434,7 +437,7 @@ classdef model_metric < handle
                                %[t,blk_type_count]=
                                %sldiagnostics(model_name,'CountBlocks');
                                %Only gives top level block types
-                               obj.blk_info.populate_block_info(id,char(m(end)),blk_type_count);
+                               obj.blk_info.populate_block_info(id,char(m(end)),blk_type_count,file_path);
                                obj.WriteLog([' Block Info Updated of' model_name]);
                               
                                
@@ -462,7 +465,7 @@ classdef model_metric < handle
                                    obj.WriteLog(sprintf('%s is a library. Skipping calculating cyclomatic metric/compile check',model_name));
                                    obj.close_the_model(model_name);
                                    try
-                                   obj.write_to_database(id,char(m(end)),-1,1,schk_blk_count,blk_cnt,...
+                                   obj.write_to_database(id,char(m(end)),file_path,-1,1,schk_blk_count,blk_cnt,...
                                        subsys_count,agg_subsys_count,depth,liblink_count,-1,-1 ...
                                    ,-1,-1,-1,'N/A','N/A','N/A'...
                                             ,-1,-1,-1,-1,-1 ...
@@ -560,7 +563,7 @@ classdef model_metric < handle
                                %end
                                obj.WriteLog(sprintf("Writing to Database"));
                                try
-                                    success = obj.write_to_database(id,char(m(end)),isTest,0,schk_blk_count,blk_cnt,subsys_count,...
+                                    success = obj.write_to_database(id,char(m(end)),file_path,isTest,0,schk_blk_count,blk_cnt,subsys_count,...
                                             agg_subsys_count,depth,liblink_count,compiles,cyclo_complexity...
                                             ,simulation_time,compile_time,num_alge_loop,target_hw,solver_type,sim_mode...
                                             ,total_lines_cnt,total_descendant_count,ncs_count,scc_count,unique_sfun_count...
@@ -611,7 +614,7 @@ classdef model_metric < handle
            
            try
               for i = 1: c
-                success = obj.write_to_database(id,test_harness(i).name,1,0,-1,-1,-1,...
+                success = obj.write_to_database(id,test_harness(i).name,'xxxxx',1,0,-1,-1,-1,...
                         -1,-1,-1,-1,-1,...
                         -1,-1,-1,'N/A','N/A','N/A',...
                         -1,-1,-1,-1,-1,...
