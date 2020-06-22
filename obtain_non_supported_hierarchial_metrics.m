@@ -134,7 +134,7 @@ methods
                 elseif isKey(mdlref_depth_map,string(component_in_every_lvl(i))) && mdlref_depth_map(string(component_in_every_lvl(i))) == dpth
                     %https://www.mathworks.com/help/simulink/slref/find_mdlrefs.html#butnbec-1-allLevels
                     [mdlref,mdlref_name] = find_mdlrefs(model_name,'ReturnTopModelAsLastElement',false);
-                    idx = find(strcmp([mdlref{:}], blk_name_of_component));
+                    idx = find(strcmp([mdlref], blk_name_of_component));
                     if ~isempty(idx)
                         mdl_ref_fullpath = mdlref_name(idx(1));
                     else 

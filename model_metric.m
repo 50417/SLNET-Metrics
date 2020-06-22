@@ -452,7 +452,7 @@ classdef model_metric < handle
 
                            if ~isempty(sltest.harness.find(model_name,'SearchDepth',depth))
                                 obj.WriteLog(sprintf('File Id %d : model : %s has %d test harness',...
-                                    id, char(m(end))  ,length(sltest.harness.find(model_name,'SearchDepth',15))));
+                                    id, char(m(end))  ,length(sltest.harness.find(model_name,'SearchDepth',depth))));
                             end
                            
                            if obj.cfg.PROCESS_LIBRARY
@@ -734,7 +734,7 @@ classdef model_metric < handle
                     %This is a model reference
                     %https://www.mathworks.com/help/simulink/slref/find_mdlrefs.html#butnbec-1-allLevels
                     [mdlref,mdlref_name] = find_mdlrefs(model_name,'ReturnTopModelAsLastElement',false);
-                    idx = find(strcmp([mdlref{:}], currentBlock));
+                    idx = find(strcmp([mdlref], currentBlock));
                     if ~isempty(idx)
                         mdl_ref_fullpath = mdlref_name(idx(1));
                     else 
