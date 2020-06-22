@@ -110,13 +110,58 @@ methods
                 {id,model_name,file_path,Depth,Block_count,Conn_count_no_hidden,Conn_count_hidden_only,Child_model_count});
             output_bol= 1;
         end
+        %returns all components at a particular depth 
+        function key_of_map = get_modelcomponent(obj,map_comp_dpth,dpth)
+            ind = cellfun(@(x)isequal(x,dpth),values(map_comp_dpth));
+            testkeys = keys(map_comp_dpth);
+            key_of_map = testkeys(ind);
+        end
         
         function [blk_lst_this_lvl,root_blk] = list_of_blocks_in_this_lvl(obj,model_name, component_in_every_lvl,mdlref_depth_map,dpth)
             blk_lst_this_lvl = {};
             root_blk = {};
-            for i=1:size(component_in_every_lvl)
-                blk_name_of_component =split(string(component_in_every_lvl(i)),"/");
-                blk_name_of_component = blk_name_of_component(end);
+           
+                main_comp = obj.get_modelcomponent(component_in_every_lvl,dpth-1);
+                mdlref_comp = obj.get_modelcomponent(mdlref_depth_map,dpth-1);
+                
+                [r,c] = size(main_comp);
+                for p = 1: c
+                    component_blocks = find_system(main_comp(p),'SearchDepth',1,'LookUnderMasks', 'all', 'FollowLinks','off');
+                    for j = 1: length(component_blocks)
+                        if ~ strcmp(component_blocks{j},main_comp(p)) 
+                            blk_lst_this_lvl(end+1,1) = component_blocks(j);
+                        end
+                    end
+                    root_blk(end+1,1) =main_comp(p);
+                end
+                    
+                [r,c] = size(mdlref_comp);
+                 for p = 1: c
+                     mdl_component_blocks = find_system(mdlref_comp(p),'SearchDepth',1,'LookUnderMasks', 'all', 'FollowLinks','off');
+                        for j = 1: length(mdl_component_blocks)
+                            if ~ strcmp(mdl_component_blocks{j}, mdlref_comp(p)) 
+                                blk_lst_this_lvl(end+1,1) = mdl_component_blocks(j);
+                            end
+                        end
+                        root_blk(end+1,1) = mdlref_comp(p);
+                 end
+                 
+                main_comp_cur_lvl = obj.get_modelcomponent(component_in_every_lvl,dpth);
+                mdlref_com_cur_lvl = obj.get_modelcomponent(mdlref_depth_map,dpth);
+                
+                [r,c] = size(main_comp_cur_lvl);
+                for p = 1: c
+                    blk_lst_this_lvl(end+1,1) = main_comp_cur_lvl(p);
+                end
+                    
+                [r,c] = size(mdlref_com_cur_lvl);
+                 for p = 1: c
+                    blk_lst_this_lvl(end+1,1) = mdlref_com_cur_lvl(p);
+                end
+                 %{
+                
+                
+                blk_name_of_component = get_param(component_in_every_lvl(i),'Name');
                 
                 %https://www.mathworks.com/help/matlab/ref/cellfun.html
                 num_of_bslash = cellfun('length',regexp(component_in_every_lvl(i),'/')) ;
@@ -124,13 +169,7 @@ methods
                     %if (isempty(find_system(model_name,'lookundermasks','all','Name',blk_name_of_component(end))))
                     %end 
                     
-                    component_blocks = find_system(component_in_every_lvl(i),'SearchDepth',1,'LookUnderMasks', 'all', 'FollowLinks','off');
-                    for j = 1: length(component_blocks)
-                        if ~ strcmp(component_blocks{j}, component_in_every_lvl(i)) 
-                            blk_lst_this_lvl(end+1,1) = component_blocks(j);
-                        end
-                    end
-                    root_blk(end+1,1) = component_in_every_lvl(i);
+                   
                 elseif isKey(mdlref_depth_map,string(component_in_every_lvl(i))) && mdlref_depth_map(string(component_in_every_lvl(i))) == dpth
                     %https://www.mathworks.com/help/simulink/slref/find_mdlrefs.html#butnbec-1-allLevels
                     [mdlref,mdlref_name] = find_mdlrefs(model_name,'ReturnTopModelAsLastElement',false);
@@ -158,6 +197,8 @@ methods
                 end
                 
             end
+                 %}
+            
             blk_lst_this_lvl =  unique(blk_lst_this_lvl,'stable');
             root_blk =   unique(root_blk,'stable');
         end

@@ -268,7 +268,10 @@ classdef model_metric < handle
         % Close the model https://www.mathworks.com/matlabcentral/answers/173164-why-the-models-stays-in-paused-after-initialisation-state
         function obj= close_the_model(obj,model)
             try
-               
+               mdlWks = get_param(model,'ModelWorkspace');
+               if ~isempty(mdlWks)
+               clear(mdlWks);
+               end
                obj.WriteLog(sprintf("Closing %s",model));
          
                close_system(model);
@@ -315,7 +318,7 @@ classdef model_metric < handle
            processed_file_count = 1;
            %Loop over each Zip File 
            for cnt = 1 : size(list_of_zip_files)
-              
+                    
                     test_harness = struct([]);
 
                     name =strtrim(char(list_of_zip_files(cnt).name));  
@@ -753,15 +756,30 @@ classdef model_metric < handle
             [~,idx]=sort(cellfun(@(x) length(regexp(x,'/')),all_blocks_in_every_lvl));
             all_blocks_in_every_lvl = all_blocks_in_every_lvl(idx);
             mdlref_dpth_map = containers.Map();
+            blkcomp_dpth_map = containers.Map();
             for i=1:size(all_blocks_in_every_lvl)
                 currentBlock =all_blocks_in_every_lvl(i);
                 if strcmp(currentBlock,model_name)
                     depth = 0;
+                    blkcomp_dpth_map(model_name) = 0; 
                     continue
                 end
-               
-                %https://www.mathworks.com/help/matlab/ref/cellfun.html
-                num_of_bslash = cellfun('length',regexp(currentBlock,'/')) ;
+                %check if the component has two consecutive slash in
+                %it. means the block name has slash
+                consec_slash = regexp(currentBlock,'//+');
+                if ~isempty(consec_slash{1})
+                    curr_name = get_param(currentBlock,'Name');
+                    name = regexprep(string(curr_name),'?',' ');%split(string(currentBlock),"/");
+                    num_of_bslash = cellfun('length',regexp(regexprep(currentBlock,'(/{2,})',''),'/')) ;
+                
+                else
+                    %https://www.mathworks.com/help/matlab/ref/cellfun.html
+                    num_of_bslash = cellfun('length',regexp(currentBlock,'/')) ;
+                    name = split(string(currentBlock),"/");
+                    name = name(end);
+                end 
+                
+          
                 if num_of_bslash == 0 
                     
                     
@@ -772,7 +790,9 @@ classdef model_metric < handle
                     if ~isempty(idx)
                         mdl_ref_fullpath = mdlref_name(idx(1));
                     else 
+                        %pause;
                         error('Model reference not found');
+                        
                     end
                     mdl_dpth = cellfun('length',regexp(mdl_ref_fullpath,'/')) ;
                     mdlref_dpth_map(string(currentBlock))=mdl_dpth;
@@ -781,15 +801,19 @@ classdef model_metric < handle
                     end
                    continue;
                 end
-                name = split(string(currentBlock),"/");
+               
                 %check if the component inside the reference model can be found in the parent model
-                %then add it to the map . 
-                if (isempty(find_system(model_name,'lookundermasks','all','Name',name(end))))
+                %if not add it to the map . name consecutive slashes check
+                %earlier is to satisfy this . 
+                
+                % if empty, this is a component(probably subsystem) from model reference. 
+                if (isempty(find_system(model_name,'lookundermasks','all','Name',name)))
+                    
                     mdl_ref_path = keys(mdlref_dpth_map);
-                        
+
                     for i = 1 : length(mdl_ref_path)
                         load_system(mdl_ref_path{i});
-                        blk_path = find_system(mdl_ref_path{i},'lookundermasks','all','Name',name(end));
+                        blk_path = find_system(mdl_ref_path{i},'lookundermasks','all','Name',name);
                         close_system(mdl_ref_path{i});
                         if(~isempty(blk_path))
                             break
@@ -804,14 +828,27 @@ classdef model_metric < handle
                     if depth > true_depth_of_mdlref_blk
                         depth = true_depth_of_mdlref_blk;
                     end
-                    continue
+                else 
+                    %if not in model reference of its component or root model then
+                    %if is a component of root model. 
+                    if ~isempty(consec_slash{1})
+                        
+                        tmp_string = regexprep(string(currentBlock),'(/{2,})','/');
+                        tmp_string = regexprep(tmp_string,newline,' ');
+                        blkcomp_dpth_map(tmp_string) = num_of_bslash;
+                    else
+                        blkcomp_dpth_map(string(currentBlock)) = num_of_bslash;
+                    end
+                    
+                    
                 end
+                
                 if num_of_bslash > depth
                     depth = num_of_bslash; 
                 end  
             end
             depth = depth + 1; % blk_in_every_lvl 
-            blk_in_every_lvl = all_blocks_in_every_lvl;
+            blk_in_every_lvl = blkcomp_dpth_map; % excludes model references and its components
             mdlref_depth_map  = mdlref_dpth_map;
             
         end
