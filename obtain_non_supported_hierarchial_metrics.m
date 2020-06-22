@@ -132,15 +132,28 @@ methods
                     end
                     root_blk(end+1,1) = component_in_every_lvl(i);
                 elseif isKey(mdlref_depth_map,string(component_in_every_lvl(i))) && mdlref_depth_map(string(component_in_every_lvl(i))) == dpth
-                    
-                    mdl_ref_path = find_system(model_name,'lookundermasks','all','Name',string(component_in_every_lvl(i)));
-                    if(isempty(mdl_ref_path))
+                    %https://www.mathworks.com/help/simulink/slref/find_mdlrefs.html#butnbec-1-allLevels
+                    [mdlref,mdlref_name] = find_mdlrefs(model_name,'ReturnTopModelAsLastElement',false);
+                    idx = find(strcmp([mdlref{:}], blk_name_of_component));
+                    if ~isempty(idx)
+                        mdl_ref_fullpath = mdlref_name(idx(1));
+                    else 
+                        mdl_ref_fullpath ={}
+                    end
+
+                    if(isempty(mdl_ref_fullpath))
                         blk_lst_this_lvl(end+1,1) = component_in_every_lvl(i);
                     else
-                        blk_lst_this_lvl(end+1,1) = mdl_ref_path;
+                        blk_lst_this_lvl(end+1,1) = mdl_ref_fullpath;
                     end
                 end
-                if isKey(mdlref_depth_map,string(component_in_every_lvl(i))) && mdlref_depth_map(string(component_in_every_lvl(i))) == dpth -1 
+                if isKey(mdlref_depth_map,string(component_in_every_lvl(i))) && mdlref_depth_map(string(component_in_every_lvl(i))) == dpth -1
+                    mdl_component_blocks = find_system(component_in_every_lvl(i),'SearchDepth',1,'LookUnderMasks', 'all', 'FollowLinks','off');
+                    for j = 1: length(mdl_component_blocks)
+                        if ~ strcmp(mdl_component_blocks{j}, component_in_every_lvl(i)) 
+                            blk_lst_this_lvl(end+1,1) = mdl_component_blocks(j);
+                        end
+                    end
                     root_blk(end+1,1) = component_in_every_lvl(i);
                 end
                 

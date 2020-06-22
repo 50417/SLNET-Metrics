@@ -411,12 +411,6 @@ classdef model_metric < handle
                                end
                            end
                            
-                           isTest = -1;
-
-                           if ~isempty(sltest.harness.find(model_name,'SearchDepth',15))
-                                obj.WriteLog(sprintf('File Id %d : model : %s has %d test harness',...
-                                    id, char(m(end))  ,length(sltest.harness.find(model_name,'SearchDepth',15))));
-                            end
                            
                             try
                                %sLDIAGNOSTIC BLOCK COUNT .. BASED ON https://blogs.mathworks.com/simulink/2009/08/11/how-many-blocks-are-in-that-model/
@@ -443,6 +437,7 @@ classdef model_metric < handle
                                obj.blk_info.populate_block_info(id,char(m(end)),blk_type_count);
                                obj.WriteLog([' Block Info Updated of' model_name]);
                               
+                               
                            
                               
                            catch ME
@@ -453,6 +448,13 @@ classdef model_metric < handle
                                 continue;
                                %rmpath(genpath(folder_path));
                             end
+                            isTest = -1;
+
+                           if ~isempty(sltest.harness.find(model_name,'SearchDepth',depth))
+                                obj.WriteLog(sprintf('File Id %d : model : %s has %d test harness',...
+                                    id, char(m(end))  ,length(sltest.harness.find(model_name,'SearchDepth',15))));
+                            end
+                           
                            if obj.cfg.PROCESS_LIBRARY
                                isLib = bdIsLibrary(model_name);% Generally Library are precompiled:  https://www.mathworks.com/help/simulink/ug/creating-block-libraries.html
                                if isLib
@@ -727,16 +729,30 @@ classdef model_metric < handle
                 %https://www.mathworks.com/help/matlab/ref/cellfun.html
                 num_of_bslash = cellfun('length',regexp(currentBlock,'/')) ;
                 if num_of_bslash == 0 
-                    depth = 1;
-                    %mdl_ref_path = find_system(model_name,'lookundermasks','all','Name',string(currentBlock))
+                    
+                    
                     %This is a model reference
-                    mdlref_dpth_map(string(currentBlock))=cellfun('length',regexp( find_system(model_name,'lookundermasks','all','Name',string(currentBlock)),'/'));
+                    %https://www.mathworks.com/help/simulink/slref/find_mdlrefs.html#butnbec-1-allLevels
+                    [mdlref,mdlref_name] = find_mdlrefs(model_name,'ReturnTopModelAsLastElement',false);
+                    idx = find(strcmp([mdlref{:}], currentBlock));
+                    if ~isempty(idx)
+                        mdl_ref_fullpath = mdlref_name(idx(1));
+                    else 
+                        error('Model reference not found');
+                    end
+                    mdl_dpth = cellfun('length',regexp(mdl_ref_fullpath,'/')) ;
+                    mdlref_dpth_map(string(currentBlock))=mdl_dpth;
+                    if(depth<mdl_dpth)
+                        depth = mdl_dpth;
+                    end
                    continue;
                 end
                 name = split(string(currentBlock),"/");
+                %check if the component inside the reference model can be found in the parent model
+                %then add it to the map . 
                 if (isempty(find_system(model_name,'lookundermasks','all','Name',name(end))))
                     mdl_ref_path = keys(mdlref_dpth_map);
-  
+                        
                     for i = 1 : length(mdl_ref_path)
                         load_system(mdl_ref_path{i});
                         blk_path = find_system(mdl_ref_path{i},'lookundermasks','all','Name',name(end));
