@@ -290,7 +290,7 @@ classdef model_metric < handle
                 end
                 %eval([model '([],[],[],''sizes'')']);
                 
-                if (strcmp(exception.identifier ,'Simulink:Commands:InvModelClose' ))
+                if (strcmp(exception.identifier ,'Simulink:Commands:InvModelClose' ) | strcmp(exception.identifier ,'Simulink:Engine:InvModelClose'))
                     eval([model '([],[],[],''term'')']);
                 end
                 if (strcmp(exception.identifier ,'Simulink:Commands:InvSimulinkObjectName' ))
