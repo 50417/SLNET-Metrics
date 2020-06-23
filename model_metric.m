@@ -772,7 +772,7 @@ classdef model_metric < handle
                 consec_slash = regexp(currentBlock,'//+');
                 if ~isempty(consec_slash{1})
                     curr_name = get_param(currentBlock,'Name');
-                    name = regexprep(string(curr_name),'?',' ');%split(string(currentBlock),"/");
+                    name = regexprep(string(curr_name),newline,' ');%split(string(currentBlock),"/");
                     num_of_bslash = cellfun('length',regexp(regexprep(currentBlock,'(/{2,})',''),'/')) ;
                 
                 else
@@ -798,7 +798,8 @@ classdef model_metric < handle
                         
                     end
                     mdl_dpth = cellfun('length',regexp(mdl_ref_fullpath,'/')) ;
-                    mdlref_dpth_map(string(currentBlock))=mdl_dpth;
+                    tmp_string = regexprep(string(currentBlock),newline,' ');
+                    mdlref_dpth_map(tmp_string)=mdl_dpth;
                     if(depth<mdl_dpth)
                         depth = mdl_dpth;
                     end
@@ -827,23 +828,19 @@ classdef model_metric < handle
                     %blkPath backslash count 
                     num_of_bslash_mdlref_blk = cellfun('length',regexp(blk_path,'/')) ;
                     true_depth_of_mdlref_blk = num_of_bslash_mdlref_blk + mdlref_dpth_map(mdl_ref_path{i});
-                    mdlref_dpth_map(string(currentBlock))=true_depth_of_mdlref_blk;
+                    
+                    tmp_string = regexprep(string(currentBlock),newline,' ');
+                    mdlref_dpth_map(tmp_string)=true_depth_of_mdlref_blk;
                     if depth > true_depth_of_mdlref_blk
                         depth = true_depth_of_mdlref_blk;
                     end
                 else 
                     %if not in model reference of its component or root model then
                     %if is a component of root model. 
-                    if ~isempty(consec_slash{1})
-                        
-                        tmp_string = regexprep(string(currentBlock),'(/{2,})','/');
-                        tmp_string = regexprep(tmp_string,newline,' ');
-                        blkcomp_dpth_map(tmp_string) = num_of_bslash;
-                    else
-                        blkcomp_dpth_map(string(currentBlock)) = num_of_bslash;
-                    end
-                    
-                    
+
+                    tmp_string = regexprep(string(currentBlock),newline,' ');
+                    blkcomp_dpth_map(tmp_string) = num_of_bslash;
+ 
                 end
                 
                 if num_of_bslash > depth
