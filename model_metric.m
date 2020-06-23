@@ -289,7 +289,15 @@ classdef model_metric < handle
                     return;
                 end
                 %eval([model '([],[],[],''sizes'')']);
-                eval([model '([],[],[],''term'')']);
+                
+                if (strcmp(exception.identifier ,'Simulink:Commands:InvModelClose' ))
+                    eval([model '([],[],[],''term'')']);
+                end
+                if (strcmp(exception.identifier ,'Simulink:Commands:InvSimulinkObjectName' ))
+                    bdclose('all');
+                    return;
+                end
+                
                 obj.close_the_model(model);
             end
         end
@@ -814,7 +822,9 @@ classdef model_metric < handle
                 if (isempty(find_system(model_name,'lookundermasks','all','Name',name)))
                     
                     mdl_ref_path = keys(mdlref_dpth_map);
-
+                    if isempty(mdl_ref_path)
+                        continue;
+                    end
                     for i = 1 : length(mdl_ref_path)
                         load_system(mdl_ref_path{i});
                         blk_path = find_system(mdl_ref_path{i},'lookundermasks','all','Name',name);
