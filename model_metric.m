@@ -292,13 +292,18 @@ classdef model_metric < handle
                 
                 if (strcmp(exception.identifier ,'Simulink:Commands:InvModelClose' ) | strcmp(exception.identifier ,'Simulink:Engine:InvModelClose'))
                     eval([model '([],[],[],''term'')']);
+                     close_system(model);
+                     bdclose(model);
+                     return;
                 end
                 if (strcmp(exception.identifier ,'Simulink:Commands:InvSimulinkObjectName' ))
                     bdclose('all');
                     return;
                 end
+                 %eval([model '([],[],[],''term'')']);
+                 bdclose('all');
                 
-                obj.close_the_model(model);
+                %obj.close_the_model(model);
             end
         end
         
@@ -329,7 +334,10 @@ classdef model_metric < handle
            processed_file_count = 1;
            %Loop over each Zip File 
            for cnt = 1 : size(list_of_zip_files)
-                    
+                    %if (cnt <1856)
+                     %   processed_file_count = processed_file_count + 1; 
+                      %  continue
+                    %end
                     test_harness = struct([]);
 
                     name =strtrim(char(list_of_zip_files(cnt).name));  
@@ -389,7 +397,10 @@ classdef model_metric < handle
                            %disp(list_of_unzipped_files(cnt));
                            obj.WriteLog(sprintf('\nFound : %s',char(m(end))));
                            
-                          
+                          % if contains(char(m(end)),'MODELO_')
+                           %    continue
+                           %end
+                           
                            model_name = strrep(char(m(end)),'.slx','');
                            model_name = strrep(model_name,'.mdl','');
                           %Skip if Id and model name already in database 
@@ -576,6 +587,7 @@ classdef model_metric < handle
                                    
                                %end
                                obj.WriteLog(sprintf("Writing to Database"));
+                               success = 0;
                                try
                                     success = obj.write_to_database(id,char(m(end)),file_path,isTest,0,schk_blk_count,blk_cnt,subsys_count,...
                                             agg_subsys_count,depth,liblink_count,compiles,cyclo_complexity...
@@ -883,6 +895,8 @@ classdef model_metric < handle
                 metric_engine = slmetric.Engine();
                 %Simulink.BlockDiagram.expandSubsystem(block)
                 setAnalysisRoot(metric_engine, 'Root',  model);
+                metric_engine.AnalyzeModelReferences = 1;
+                metric_engine.AnalyzeLibraries = 0;
                 mData ={'mathworks.metrics.CyclomaticComplexity'};
                 try
                     execute(metric_engine,mData);
