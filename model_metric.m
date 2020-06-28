@@ -1529,7 +1529,7 @@ classdef model_metric < handle
         end
         function original_study_mdl_name = list_of_model_name(obj)
             
-            loc = '/home/sls6964xx/Desktop/UtilityProgramNConfigurationFile/CollectingSimulinkModels/ShafiulsCorpusMeta/List of all models - Sheet1.csv'
+            loc = 'C-Corpus_Model_meta.csv'
             m = readtable(loc);
             data = table2cell(m);
             tutorial  = data(:,1);
