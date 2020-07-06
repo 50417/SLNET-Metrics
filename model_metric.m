@@ -14,15 +14,16 @@ classdef model_metric < handle
         childModelMap; % used by  C-corpus custom tool
         hidden_lines_count_old; %used by C-corpus custom tool
         unique_lines_count_old; %used by C-corpus custom tool
+        map;%used by C-corpus custom tool
         
         conn;
-        colnames = {'FILE_ID','Model_Name','file_path','is_test','is_Lib','SCHK_Block_count','SLDiag_Block_count','C_corpus_blk_count','C_corpus_hidden_conn','C_corpus_conn','SubSystem_count_Top',...
+        colnames = {'FILE_ID','Model_Name','file_path','is_test','is_Lib','SCHK_Block_count','SLDiag_Block_count','C_corpus_blk_count','C_corpus_hidden_conn','C_corpus_conn','C_corpus_hierar_depth','SubSystem_count_Top',...
             'Agg_SubSystem_count','Hierarchy_depth','LibraryLinked_Count',...,
             'compiles','CComplexity',...
             'Sim_time','Compile_time','Alge_loop_Cnt','target_hw','solver_type','sim_mode'...
             ,'total_ConnH_cnt','total_desc_cnt','ncs_cnt','scc_cnt','unique_sfun_count','sfun_nam_count'...
             ,'mdlref_nam_count','unique_mdl_ref_count'};
-        coltypes = {'INTEGER','VARCHAR','VARCHAR','Numeric','Boolean','NUMERIC','NUMERIC','NUMERIC','Numeric','NUMERIC','NUMERIC','NUMERIC',...,
+        coltypes = {'INTEGER','VARCHAR','VARCHAR','Numeric','Boolean','NUMERIC','NUMERIC','NUMERIC','Numeric','NUMERIC','NUMERIC','Numeric','NUMERIC',...,
             'NUMERIC','NUMERIC','Boolean','NUMERIC','NUMERIC','NUMERIC','NUMERIC','VARCHAR','VARCHAR','VARCHAR'...
             ,'NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC','VARCHAR'...
             ,'VARCHAR','NUMERIC'};
@@ -141,14 +142,14 @@ classdef model_metric < handle
             exec(obj.conn,char(create_metric_table));
         end
         %Writes to database 
-        function output_bol = write_to_database(obj,id,simulink_model_name,file_path, isTest,isLib,schK_blk_count,block_count,c_corpus_blk_cnt,c_corpus_hidden_conn,c_corpus_conn,...
+        function output_bol = write_to_database(obj,id,simulink_model_name,file_path, isTest,isLib,schK_blk_count,block_count,c_corpus_blk_cnt,c_corpus_hidden_conn,c_corpus_conn,c_corpus_hierar,...
                                             subsys_count,agg_subsys_count,depth,linkedcount,compiles, cyclo,...
                                             sim_time,compile_time,num_alge_loop,target_hw,solver_type,sim_mode,...
                                             total_lines_cnt,total_descendant_count,ncs_count,scc_count,unique_sfun_count,...
                                             sfun_reused_key_val,...
                                             modelrefMap_reused_val,unique_mdl_ref_count)%block_count)
             insert(obj.conn,obj.table_name,obj.colnames, ...
-                {id,simulink_model_name,file_path,isTest,isLib,schK_blk_count,block_count,c_corpus_blk_cnt,c_corpus_hidden_conn,c_corpus_conn,subsys_count,...
+                {id,simulink_model_name,file_path,isTest,isLib,schK_blk_count,block_count,c_corpus_blk_cnt,c_corpus_hidden_conn,c_corpus_conn,c_corpus_hierar,subsys_count,...
                 agg_subsys_count,depth,linkedcount,compiles,cyclo,...
                 sim_time,compile_time,num_alge_loop,target_hw,solver_type,sim_mode...
                 ,total_lines_cnt,total_descendant_count,ncs_count,scc_count,unique_sfun_count,...
@@ -453,7 +454,7 @@ classdef model_metric < handle
                                    obj.WriteLog(sprintf('%s is a library. Skipping calculating cyclomatic metric/compile check',model_name));
                                    obj.close_the_model(model_name);
                                    try
-                                   obj.write_to_database(id,char(m(end)),file_path,-1,1,-1,-1,-1,-1,-1,...
+                                   obj.write_to_database(id,char(m(end)),file_path,-1,1,-1,-1,-1,-1,-1,-1,...
                                        -1,-1,-1,-1,-1,-1 ...
                                    ,-1,-1,-1,'N/A','N/A','N/A'...
                                             ,-1,-1,-1,-1,-1 ...
@@ -523,7 +524,7 @@ classdef model_metric < handle
                                    obj.WriteLog(sprintf('%s is a library. Skipping calculating cyclomatic metric/compile check',model_name));
                                    obj.close_the_model(model_name);
                                    try
-                                   obj.write_to_database(id,char(m(end)),file_path,-1,1,schk_blk_count,blk_cnt,c_corpus_blk_cnt,c_corpus_hidden_conn,c_corpus_conn,...
+                                   obj.write_to_database(id,char(m(end)),file_path,-1,1,schk_blk_count,blk_cnt,c_corpus_blk_cnt,c_corpus_hidden_conn,c_corpus_conn,c_corpus_hierar,...
                                        subsys_count,agg_subsys_count,depth,liblink_count,-1,-1 ...
                                    ,-1,-1,-1,'N/A','N/A','N/A'...
                                             ,-1,-1,-1,-1,-1 ...
@@ -554,12 +555,16 @@ classdef model_metric < handle
                                    obj.blk_count_old = 0;
                                    obj.hidden_lines_count_old = 0;
                                    obj.unique_lines_count_old = 0;
+                                   obj.map = mymap();
                                    obj.childModelMap = mymap();
                                    
                                    obj.obtain_hierarchy_metrics_old(model_name,1,false, false);
+                                   
                                    c_corpus_blk_cnt = obj.blk_count_old;
                                     c_corpus_hidden_conn = obj.hidden_lines_count_old ;
                                     c_corpus_conn = obj.unique_lines_count_old ;
+                                    c_corpus_hierar = obj.map.len_keys();
+                                    
                                     stop(timeout);
                                     delete(timeout);
                                     obj.close_the_model(model_name);
@@ -576,11 +581,14 @@ classdef model_metric < handle
                                    obj.hidden_lines_count_old = 0;
                                    obj.unique_lines_count_old = 0;
                                    obj.childModelMap = mymap();
+                                   obj.map = mymap();
                                    
                                    obj.obtain_hierarchy_metrics_old(model_name,1,false, false);
+                                   
                                    c_corpus_blk_cnt = obj.blk_count_old;
                                    c_corpus_hidden_conn = obj.hidden_lines_count_old ;
                                     c_corpus_conn = obj.unique_lines_count_old ;
+                                    c_corpus_hierar = obj.map.len_keys();
                                     
                                     obj.WriteLog(sprintf('ERROR Compiling %s',model_name));                    
                                     obj.WriteLog(['ERROR ID : ' ME.identifier]);
@@ -651,7 +659,7 @@ classdef model_metric < handle
                                obj.WriteLog(sprintf("Writing to Database"));
                                success = 0;
                                try
-                                    success = obj.write_to_database(id,char(m(end)),file_path,isTest,0,schk_blk_count,blk_cnt,c_corpus_blk_cnt,c_corpus_hidden_conn,c_corpus_conn,subsys_count,...
+                                    success = obj.write_to_database(id,char(m(end)),file_path,isTest,0,schk_blk_count,blk_cnt,c_corpus_blk_cnt,c_corpus_hidden_conn,c_corpus_conn,c_corpus_hierar,subsys_count,...
                                             agg_subsys_count,depth,liblink_count,compiles,cyclo_complexity...
                                             ,simulation_time,compile_time,num_alge_loop,target_hw,solver_type,sim_mode...
                                             ,total_lines_cnt,total_descendant_count,ncs_count,scc_count,unique_sfun_count...
@@ -702,7 +710,7 @@ classdef model_metric < handle
            
            try
               for i = 1: c
-                success = obj.write_to_database(id,test_harness(i).name,'xxxxx',1,0,-1,-1,-1,-1,-1,-1,...
+                success = obj.write_to_database(id,test_harness(i).name,'xxxxx',1,0,-1,-1,-1,-1,-1,-1,-1,...
                         -1,-1,-1,-1,-1,...
                         -1,-1,-1,'N/A','N/A','N/A',...
                         -1,-1,-1,-1,-1,...
@@ -854,14 +862,14 @@ classdef model_metric < handle
                 consec_slash = regexp(currentBlock,'//+');
                 if ~isempty(consec_slash{1})
                     curr_name = get_param(currentBlock,'Name');
-                    name = regexprep(string(curr_name),newline,' ');%split(string(currentBlock),"/");
+                    name = char(regexprep(string(curr_name),newline,' '));%split(string(currentBlock),"/");
                     num_of_bslash = cellfun('length',regexp(regexprep(currentBlock,'(/{2,})',''),'/')) ;
                 
                 else
                     %https://www.mathworks.com/help/matlab/ref/cellfun.html
                     num_of_bslash = cellfun('length',regexp(currentBlock,'/')) ;
                     name = split(string(currentBlock),"/");
-                    name = name(end);
+                    name = char(name(end));
                 end 
                 
           
@@ -1122,7 +1130,7 @@ classdef model_metric < handle
               %  obj.cycle_count = obj.cycle_count + getCountCycles(slb);
             %end
             
-            %mapKey = int2str(depth);
+            mapKey = int2str(depth);
             
 %             fprintf('\tBlock Count: %d\n', count);
             
@@ -1158,7 +1166,7 @@ classdef model_metric < handle
                 %    obj.bp_connections_depth_count.add(unique_lines,mapKey);
                 %end
                 
-                %obj.map.insert_or_add(mapKey, count);
+                obj.map.insert_or_add(mapKey, count);
                 % If there are blocks, only then it makes sense to count
                 % connections
                 %obj.connectionsLevelMap.insert_or_add(mapKey,unique_lines);
@@ -1684,7 +1692,7 @@ classdef model_metric < handle
             %18 most frequently used block 
             most_15_freq_used_blks = most_frequentlused_blocks{1};
             
-            for i = 2 : 18
+            for i = 2 : 15
                 most_15_freq_used_blks = strcat(most_15_freq_used_blks,",",most_frequentlused_blocks{i});
             end
             res.most_freq_blks = most_15_freq_used_blks;
