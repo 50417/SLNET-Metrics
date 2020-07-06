@@ -384,27 +384,51 @@ classdef model_metric < handle
                   %Assumption Zip file always consists of a single folder .
                   %Adapt later.
                   folder_path= obj.cfg.tmp_unzipped_dir;%char(list_of_unzipped_files(1));
+                  
+                  if strcmp(obj.cfg.project_source,"Tutorial")
+                      list_of_unzipped_files = {'sldemo_fuelsys.slx', 'sldemo_auto_climatecontrol.slx', 'sldemo_autotrans.slx', 'sldemo_auto_carelec.slx', 'sldemo_suspn.slx', 'sldemo_auto_climate_elec.slx',...
+                'sldemo_absbrake.slx', 'sldemo_enginewc.slx', 'sldemo_engine.slx', 'sldemo_fuelsys_dd.slx', 'sldemo_clutch.slx', 'sldemo_clutch_if.slx',...
+                'aero_guidance.slx', 'sldemo_radar_eml.slx', 'aero_atc.slx', 'slexAircraftPitchControlExample.slx', 'aero_six_dof.slx', 'aero_dap3dof.slx',...
+                'slexAircraftExample.slx', 'aero_guidance_airframe.slx',...
+            'sldemo_antiwindup.slx', 'sldemo_pid2dof.slx', 'sldemo_bumpless.slx',...
+            'aeroblk_wf_3dof.slx', 'asbdhc2.slx', 'asbswarm.slx', 'aeroblk_HL20.slx', 'asbQuatEML.slx', 'aeroblk_indicated.slx', 'aeroblk_six_dof.slx',...
+                'asbGravWPrec.slx', 'aeroblk_calibrated.slx', 'aeroblk_self_cond_cntr.slx',...
+            'sldemo_mdlref_variants_enum.slx', 'sldemo_mdlref_bus.slx','sldemo_mdlref_conversion.slx','sldemo_mdlref_counter_datamngt.slx','sldemo_mdlref_dsm.slx','sldemo_mdlref_dsm_bot.slx','sldemo_mdlref_dsm_bot2.slx','sldemo_mdlref_F2C.slx'};
+
+                  end
                   %disp(folder_path);
                   % add to the MATLAB search path
+                  if ~strcmp(obj.cfg.project_source,"Tutorial")
                   addpath(genpath(char(folder_path)));%genpath doesnot add folder named private or resources in path as it is keyword in R2019a
-                   
+                  end
                   
                   obj.WriteLog('Searching for slx and mdl file Files');
                   for cnt = 1: length(list_of_unzipped_files)
+                      
                       file_path = char(list_of_unzipped_files(cnt));
                       
-                      
+                      %if ~strcmp(file_path,"sldemo_auto_carelec.slx")
+                      %%continue
+                      %end
                        if endsWith(file_path,"slx") | endsWith(file_path,"mdl")
-                           m= split(file_path,filesep);
+                            if strcmp(obj.cfg.project_source,"Tutorial")
+                                m = string();
+                                m(end)= file_path;
+                            else
+                                 m= split(file_path,filesep);
+                            end
                           
                            
                            %m(end); log
                            %disp(list_of_unzipped_files(cnt));
                            obj.WriteLog(sprintf('\nFound : %s',char(m(end))));
                            
-             
+                            if strcmp(obj.cfg.project_source,"Tutorial")
+                                model_name = char(strrep(m,'.slx',''));
+                            else
                            model_name = strrep(char(m(end)),'.slx','');
                            model_name = strrep(model_name,'.mdl','');
+                            end
                           %Skip if Id and model name already in database 
                             if(~isempty(find(file_id_mdl_array==strcat(num2str(id),char(m(end)),file_path), 1)))
                                obj.WriteLog(sprintf('File Id %d %s already processed. Skipping', id, char(m(end)) ));
@@ -443,7 +467,8 @@ classdef model_metric < handle
                            
                            
                             try
-                               %sLDIAGNOSTIC BLOCK COUNT .. BASED ON https://blogs.mathworks.com/simulink/2009/08/11/how-many-blocks-are-in-that-model/
+                                
+                                   %sLDIAGNOSTIC BLOCK COUNT .. BASED ON https://blogs.mathworks.com/simulink/2009/08/11/how-many-blocks-are-in-that-model/
                                obj.WriteLog(['Calculating Number of blocks (BASED ON sLDIAGNOSTIC TOOL) of ' model_name]);
                                blk_cnt=obj.get_total_block_count(model_name);
                                obj.WriteLog([' Number of blocks(BASED ON sLDIAGNOSTIC TOOL) of' model_name ':' num2str( blk_cnt)]);
@@ -453,10 +478,7 @@ classdef model_metric < handle
                                obj.WriteLog(sprintf(" id = %d Name = %s BlockCount= %d AGG_SubCount = %d SubSys_Count=%d Subsystem_depth=%d LibLInkedCount=%d",...
                                    id,char(m(end)),blk_cnt, agg_subsys_count,subsys_count,depth,liblink_count));
                                
-                               obj.blk_count_old = 0;
-                               obj.childModelMap = mymap();
-                               obj.obtain_hierarchy_metrics_old(model_name,1,false, false);
-                               c_corpus_blk_cnt = obj.blk_count_old;
+                               
                                
                                obj.WriteLog(['Populating level wise | hierarchial info of ' model_name]);
                                [total_lines_cnt,total_descendant_count,ncs_count,scc_count,unique_sfun_count,sfun_reused_key_val,blk_type_count,modelrefMap_reused_val,unique_mdl_ref_count] = obj.lvl_info.populate_hierarchy_info(id, char(m(end)),depth,component_in_every_lvl,mdlref_depth_map,file_path);
@@ -472,6 +494,8 @@ classdef model_metric < handle
                                obj.WriteLog([' Block Info Updated of' model_name]);
                               
                                
+                                
+                             
                            
                               
                            catch ME
@@ -482,7 +506,8 @@ classdef model_metric < handle
                                 continue;
                                %rmpath(genpath(folder_path));
                             end
-                            isTest = -1;
+                             
+                          isTest = -1;
 
                            if ~isempty(sltest.harness.find(model_name,'SearchDepth',depth))
                                test_harness = [test_harness,sltest.harness.find(model_name,'SearchDepth',depth)];
@@ -519,12 +544,32 @@ classdef model_metric < handle
                                    timeout = timer('TimerFcn',' com.mathworks.mde.cmdwin.CmdWinMLIF.getInstance().processKeyFromC(2,67,''C'')','StartDelay',120);
                                     start(timeout);
                                    compiles = obj.does_model_compile(model_name);
+                                    %To replicate the numbers in C-corpus
+                                   %Paper : models need to be compiled or
+                                   %else block count varies. See sldemo_auto_climate_elec
+                                   % Only to be run in R2017a for
+                                   % reproducing
+                                   obj.blk_count_old = 0;
+                                   obj.childModelMap = mymap();
+                                   obj.obtain_hierarchy_metrics_old(model_name,1,false, false);
+                                   c_corpus_blk_cnt = obj.blk_count_old;
+                                    
                                     stop(timeout);
                                     delete(timeout);
                                     obj.close_the_model(model_name);
                                catch ME
                                     %stop(obj.timeout);
                                     delete(timeout); 
+                                   %To replicate the numbers in C-corpus
+                                   %Paper : models need to be compiled or
+                                   %else block count varies. See sldemo_auto_climate_elec
+                                   % Only to be run in R2017a for
+                                   % reproducing
+
+                                   obj.blk_count_old = 0;
+                                   obj.childModelMap = mymap();
+                                   obj.obtain_hierarchy_metrics_old(model_name,1,false, false);
+                                   c_corpus_blk_cnt = obj.blk_count_old;
                                    
                                     obj.WriteLog(sprintf('ERROR Compiling %s',model_name));                    
                                     obj.WriteLog(['ERROR ID : ' ME.identifier]);
@@ -1006,13 +1051,13 @@ classdef model_metric < handle
                             is_model_reused = obj.childModelMap.contains(modelName);
                             obj.childModelMap.inc(modelName{1,1});
                             
-                            if ~ is_model_reused
+                            %if ~ is_model_reused
                                 % Will not count the same referenced model
                                 % twice. % TODO since this is commented
                                 % out, pass this param to
                                 % obtain_hierarchy_metrics
                                 obj.obtain_hierarchy_metrics_old(currentBlock,depth+1,true, is_model_reused);
-                            end
+                            %end
                         else
                             inner_count  = obj.obtain_hierarchy_metrics_old(currentBlock,depth+1,false, false);
                             %if inner_count > 0
