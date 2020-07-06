@@ -865,8 +865,11 @@ classdef model_metric < handle
                         mdl_ref_fullpath = mdlref_name(idx(1));
                     else 
                         %pause;
-                        error('Model reference not found');
-                        
+                        %POssible cause is the current block is a model
+                        %reference and variant subsystem. Investicate
+                        %later. 
+                        %error('Model reference not found');
+                        continue;
                     end
                     mdl_dpth = cellfun('length',regexp(mdl_ref_fullpath,'/')) ;
                     tmp_string = regexprep(string(currentBlock),newline,' ');
@@ -891,7 +894,7 @@ classdef model_metric < handle
                     for i = 1 : length(mdl_ref_path)
                         mdl_ref_path{i}
                         load_system(mdl_ref_path{i});
-                        blk_path = find_system(mdl_ref_path{i},'lookundermasks','all','Name',name)
+                        blk_path = find_system(mdl_ref_path{i},'lookundermasks','all','Name',name);
                         
                         if(~isempty(blk_path))
                             break
