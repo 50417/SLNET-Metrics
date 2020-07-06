@@ -92,14 +92,14 @@ methods
                 obj.WriteLog(sprintf("Dropped %s",obj.table_name))
             end
             obj.WriteLog(create_metric_table);
-            exec(obj.conn,create_metric_table);
+            exec(obj.conn,char(create_metric_table));
         end
               
         %drop table Striclty for debugging purposes
         function drop_table(obj)
             %Strictly for debugginf purpose only
             sqlquery = ['DROP TABLE IF EXISTS ' obj.table_name];
-            exec(obj.conn,sqlquery);
+            exec(obj.conn,char(sqlquery));
             %max(data)
         end
         

@@ -49,7 +49,7 @@ classdef model_metric < handle
                 obj.cfg.tmp_unzipped_dir = "workdirtmp";
             end
             if(~exist(obj.cfg.tmp_unzipped_dir,'dir'))
-                    mkdir(obj.cfg.tmp_unzipped_dir);
+                    mkdir(char(obj.cfg.tmp_unzipped_dir));
             end
             obj.connect_table();
            
@@ -134,7 +134,7 @@ classdef model_metric < handle
                 obj.WriteLog(sprintf("Dropped %s",obj.table_name))
             end
              obj.WriteLog(create_metric_table);
-            exec(obj.conn,create_metric_table);
+            exec(obj.conn,char(create_metric_table));
         end
         %Writes to database 
         function output_bol = write_to_database(obj,id,simulink_model_name,file_path, isTest,isLib,schK_blk_count,block_count,...
@@ -185,7 +185,7 @@ classdef model_metric < handle
         function drop_table(obj)
             %Strictly for debugginf purpose only
             sqlquery = ['DROP TABLE IF EXISTS ' obj.table_name];
-            exec(obj.conn,sqlquery);
+            exec(obj.conn,char(sqlquery));
             %max(data)
         end
         
@@ -229,17 +229,17 @@ classdef model_metric < handle
                 rmdir('slprj','s');
             end
             if ispc
-                rmdir(obj.cfg.tmp_unzipped_dir,'s');
+                rmdir(char(obj.cfg.tmp_unzipped_dir),'s');
                 %system(strcat('rmdir /S /Q ' ," ",folder));
             elseif isunix
-                system(strcat('rmdir -p'," ",folder))
+                system(char(strcat('rm -rf'," ",folder)))
             else 
-                 rmdir(folder,'s');%https://www.mathworks.com/matlabcentral/answers/21413-error-using-rmdir
+                 rmdir(char(folder),'s');%https://www.mathworks.com/matlabcentral/answers/21413-error-using-rmdir
             end
             obj.WriteLog("open");
             rehash;
             java.lang.Thread.sleep(5);
-            mkdir(folder);
+            mkdir(char(folder));
             obj.cleanup();
             
         end
@@ -378,13 +378,13 @@ classdef model_metric < handle
          
                    %unzip the file TODO: Try CATCH
                    obj.WriteLog('Extracting Files');
-                   list_of_unzipped_files = unzip( obj.get_full_path(list_of_zip_files(cnt).name), obj.cfg.tmp_unzipped_dir);
+                   list_of_unzipped_files = unzip( char(obj.get_full_path(list_of_zip_files(cnt).name)), char(obj.cfg.tmp_unzipped_dir));
                   %Assumption Zip file always consists of a single folder .
                   %Adapt later.
                   folder_path= obj.cfg.tmp_unzipped_dir;%char(list_of_unzipped_files(1));
                   %disp(folder_path);
                   % add to the MATLAB search path
-                  addpath(genpath(folder_path));%genpath doesnot add folder named private or resources in path as it is keyword in R2019a
+                  addpath(genpath(char(folder_path)));%genpath doesnot add folder named private or resources in path as it is keyword in R2019a
                    
                   
                   obj.WriteLog('Searching for slx and mdl file Files');
@@ -609,9 +609,9 @@ classdef model_metric < handle
                   end
                  % close all hidden;
                  
-                rmpath(genpath(folder_path));
+                rmpath(genpath(char(folder_path)));
                 try
-                    obj.delete_tmp_folder_content(obj.cfg.tmp_unzipped_dir);
+                    obj.delete_tmp_folder_content(char(obj.cfg.tmp_unzipped_dir));
                 catch ME
                     obj.WriteLog(sprintf('ERROR deleting'));                    
                                 obj.WriteLog(['ERROR ID : ' ME.identifier]);
@@ -784,7 +784,7 @@ classdef model_metric < handle
                 currentBlock =all_blocks_in_every_lvl(i);
                 if strcmp(currentBlock,model_name)
                     depth = 0;
-                    blkcomp_dpth_map(model_name) = 0; 
+                    blkcomp_dpth_map(char(model_name)) = 0; 
                     continue
                 end
                 %check if the component has two consecutive slash in
@@ -819,7 +819,7 @@ classdef model_metric < handle
                     end
                     mdl_dpth = cellfun('length',regexp(mdl_ref_fullpath,'/')) ;
                     tmp_string = regexprep(string(currentBlock),newline,' ');
-                    mdlref_dpth_map(tmp_string)=mdl_dpth;
+                    mdlref_dpth_map(char(tmp_string))=mdl_dpth;
                     if(depth<mdl_dpth)
                         depth = mdl_dpth;
                     end
@@ -849,10 +849,10 @@ classdef model_metric < handle
                     %search use model reference (i) for its depth and
                     %blkPath backslash count 
                     num_of_bslash_mdlref_blk = cellfun('length',regexp(blk_path,'/')) ;
-                    true_depth_of_mdlref_blk = num_of_bslash_mdlref_blk + mdlref_dpth_map(mdl_ref_path{i});
+                    true_depth_of_mdlref_blk = num_of_bslash_mdlref_blk + mdlref_dpth_map(char(mdl_ref_path{i}));
                     
                     tmp_string = regexprep(string(currentBlock),newline,' ');
-                    mdlref_dpth_map(tmp_string)=true_depth_of_mdlref_blk;
+                    mdlref_dpth_map(char(tmp_string))=true_depth_of_mdlref_blk;
                     if depth > true_depth_of_mdlref_blk
                         depth = true_depth_of_mdlref_blk;
                     end
@@ -861,7 +861,7 @@ classdef model_metric < handle
                     %if is a component of root model. 
 
                     tmp_string = regexprep(string(currentBlock),newline,' ');
-                    blkcomp_dpth_map(tmp_string) = num_of_bslash;
+                    blkcomp_dpth_map(char(tmp_string)) = num_of_bslash;
  
                 end
                 
@@ -881,7 +881,7 @@ classdef model_metric < handle
             extensions = {'slxc','c','mat','wav','bmp','log'...
                'tlc','mexw64'}; % cell arrAY.. Add file extesiion 
             for i = 1 :  length(extensions)
-                delete( strcat("*.",extensions(i)));
+                delete( char(strcat("*.",extensions(i))));
             end
             
         end
@@ -1554,7 +1554,7 @@ classdef model_metric < handle
             end
             
             original_study_mdl_name = strcat(original_study_mdl_name,"'",original_study_mdl_name_cell{r},"'");
-           %{
+          %{
             
                     query = ['select distinct substr(Model_Name,1,length(MOdel_name)-4) from ( '...
 'select * from Github_Metric union ALL '...
@@ -1584,8 +1584,7 @@ classdef model_metric < handle
             %}
         % to check the number of models from meta data to 
         end
-        
- 
+
       
     end
     
