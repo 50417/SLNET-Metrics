@@ -345,7 +345,7 @@ classdef model_metric < handle
            processed_file_count = 1;
            %Loop over each Zip File 
            for cnt = 1 : size(list_of_zip_files)
-                    
+               
                     test_harness = struct([]);
 
                     name =strtrim(char(list_of_zip_files(cnt).name));  
@@ -377,7 +377,10 @@ classdef model_metric < handle
                             continue
                         end
                    end
-                   if (id==51705) %  % Requires user input: Enter morse code. 
+                   if id == 44836 || id == 63223 % models in these project hangs while calculating cyclomatic complexity. Babysit
+                       continue
+                   end
+                   if (id==51705 ||  id== 51243) %  % Requires user input: Enter morse code. 51234 chnges directory after analysis.. Need to babysit
                             continue
                    end
          
@@ -420,7 +423,6 @@ classdef model_metric < handle
                             else
                                  m= split(file_path,filesep);
                             end
-                          
                            
                            %m(end); log
                            %disp(list_of_unzipped_files(cnt));
@@ -1194,7 +1196,7 @@ classdef model_metric < handle
             original_mdl_name = obj.list_of_model_name();
             
             format short;
-            CC_compare_with = 'select  CComplexity,compile_time, Schk_block_count,total_connH_cnt, hierarchy_Depth,total_desc_cnt,ncs_cnt,scc_cnt ,cnt from ( ';
+            CC_compare_with = 'select  CComplexity,compile_time, Schk_block_count,total_connH_cnt, hierarchy_Depth,total_desc_cnt,ncs_cnt,scc_cnt ,cnt,C_corpus_hierar_depth from ( ';
             if flag
                 where_clause = [' ) where is_lib = 0 and is_test = -1 and compiles = 1 and CComplexity !=-1 and substr(Model_Name,0,length(Model_name)-3) IN (' original_mdl_name{1} ') Order by CComplexity'];
             else    
@@ -1231,7 +1233,7 @@ classdef model_metric < handle
             %[rho,pval] = corrcoef(results);
             %Correlation of Cyclomatic complexity with the following
             %metrics
-            Cc_corr_with ={'compile_time', 'block_count','connection', 'max depth','child representing blocks','NCS','SCC','Unique blk Count'};
+            Cc_corr_with ={'compile_time', 'block_count','connection', 'max depth','child representing blocks','NCS','SCC','Unique blk Count','C_corpus_hierar_depth'};
             res ={};
             for i = 2:length(Cc_corr_with)+1
                 % obj.WriteLog(sprintf('%s',Cc_corr_with{i-1}));
@@ -1242,8 +1244,15 @@ classdef model_metric < handle
                 res{i-1,1} = string(Cc_corr_with{i-1});
                 res{i-1,2} = tau;
             end
+            
+            %fprintf("%0.3f & %0.3f & %0.3f & %0.3f & %0.3f & %0.3f & %0.3f\n",...
+            %    res{7,2},res{2,2},res{3,2}, res{1,2},res{4,2},res{5,2},res{6,2} );
+            
+            fprintf("%0.4f & %0.4f & %0.4f & %0.4f & %0.4f",...
+                 res{1,2},res{9,2},res{4,2},res{5,2},res{6,2} );
            % [tau, kpal] = corr(results, 'type', 'Kendall', 'rows', 'pairwise');
             sortrows(res,[2,2])
+            %res{9,2}
     
         end
         
@@ -1335,22 +1344,22 @@ classdef model_metric < handle
             avg_block = fetch(obj.conn,query_matc_models);
             if(flag)
                 models_over_1000_blk_query = ['select sum(c) from(',...
-            ' select count(*) as c from github_metric where SCHK_block_count>1000 and is_lib=0 and is_test = -1 and substr(Model_Name,0,length(Model_name)-3) IN (' original_mdl_name{1} ') ',...
+            ' select count(*) as c from github_metric where C_corpus_blk_count>1000 and is_lib=0 and is_test = -1 and substr(Model_Name,0,length(Model_name)-3) IN (' original_mdl_name{1} ') ',...
             ' union all',...
-            ' select count(*) as c from  matc_metric where SCHK_block_count>1000 and is_lib=0 and is_test = -1 and substr(Model_Name,0,length(Model_name)-3) IN (' original_mdl_name{1} ')',...
+            ' select count(*) as c from  matc_metric where C_corpus_blk_count>1000 and is_lib=0 and is_test = -1 and substr(Model_Name,0,length(Model_name)-3) IN (' original_mdl_name{1} ')',...
             ' union all',...
-            ' select count(*) as c from  sourceforge_metric where SCHK_block_count>1000 and is_lib=0 and is_test = -1 and substr(Model_Name,0,length(Model_name)-3) IN (' original_mdl_name{1} ')',...
+            ' select count(*) as c from  sourceforge_metric where C_corpus_blk_count>1000 and is_lib=0 and is_test = -1 and substr(Model_Name,0,length(Model_name)-3) IN (' original_mdl_name{1} ')',...
             ' union all',...
-            ' select count(*) as c from  tutorial_metric where SCHK_block_count>1000 and is_lib=0 and is_test = -1 and substr(Model_Name,0,length(Model_name)-3) IN (' original_mdl_name{1} ')',...
+            ' select count(*) as c from  tutorial_metric where C_corpus_blk_count>1000 and is_lib=0 and is_test = -1 and substr(Model_Name,0,length(Model_name)-3) IN (' original_mdl_name{1} ')',...
                       ' union all',...
-            ' select count(*) as c from  others_metric where SCHK_block_count>1000 and is_lib=0 and is_test = -1 and substr(Model_Name,0,length(Model_name)-3) IN (' original_mdl_name{1} ')' ,...
+            ' select count(*) as c from  others_metric where C_corpus_blk_count>1000 and is_lib=0 and is_test = -1 and substr(Model_Name,0,length(Model_name)-3) IN (' original_mdl_name{1} ')' ,...
             ' )'
             ];
             else
             models_over_1000_blk_query = ['select sum(c) from(',...
-            ' select count(*) as c from github_metric where SCHK_block_count>1000 and is_lib=0 and is_test = -1 ',...
+            ' select count(*) as c from github_metric where C_corpus_blk_count>1000 and is_lib=0 and is_test = -1 ',...
             ' union all',...
-            ' select count(*) as c from  matc_metric where SCHK_block_count>1000 and is_lib=0 and is_test = -1 ',...
+            ' select count(*) as c from  matc_metric where C_corpus_blk_count>1000 and is_lib=0 and is_test = -1 ',...
             ' )'
             ];
             end
@@ -1390,6 +1399,31 @@ classdef model_metric < handle
                     end
                 end
             end
+            
+             %models using algebraic loop count
+            if flag
+                models_use_algebraicloop_query = ['select count(*) from',...
+                                ' (select * from github_metric where is_lib=0 and is_test = -1 and substr(Model_Name,0,length(Model_name)-3) IN (' original_mdl_name{1} ')',...
+                                 '   union all',...
+                                  '  select * from  matc_metric where  is_lib=0 and is_test = -1 and substr(Model_Name,0,length(Model_name)-3) IN (' original_mdl_name{1} ')',...
+                                   '   union all',...
+                                  '  select * from  tutorial_metric where  is_lib=0 and is_test = -1 and substr(Model_Name,0,length(Model_name)-3) IN (' original_mdl_name{1} ')',...
+                                   '   union all',...
+                                  '  select * from  sourceforge_metric where  is_lib=0 and is_test = -1 and substr(Model_Name,0,length(Model_name)-3) IN (' original_mdl_name{1} ')',...
+                                      '   union all',...
+                                  '  select * from  others_metric where  is_lib=0 and is_test = -1 and substr(Model_Name,0,length(Model_name)-3) IN (' original_mdl_name{1} ')',...
+                                   ' ) where alge_loop_cnt >0'];
+            else
+                
+            models_use_algebraicloop_query = ['select count(*) from',...
+                                ' (select * from github_metric where  is_lib=0 and is_test = -1 ',...
+                                 '   union all',...
+                                  '  select * from  matc_metric where  is_lib=0 and is_test = -1 ',...
+                                   ' ) Where alge_loop_cnt >0'];
+            end
+            models_use_algebraicloop = fetch(obj.conn,models_use_algebraicloop_query);
+            
+            
             %sfun_use_query
             if flag
                 models_use_sfun_query = ['select sfun_nam_count from',...
@@ -1480,6 +1514,10 @@ classdef model_metric < handle
             obj.WriteLog(sprintf("Number of models that use S-functions : %d\n Number of models that reused sfun : %d\n Fraction of model reusing sfun = %d",length(models_use_sfun),sfun_reuse_count,sfun_reuse_count/length(models_use_sfun)));
             obj.WriteLog(sprintf("Most Frequently used blocks in GitHub projects : \n %s ",most_15_freq_used_blks_git));
             obj.WriteLog(sprintf("Most Frequently used blocks in Matlab Central projects : \n %s ",most_15_freq_used_blks_matc));
+            obj.WriteLog(sprintf("Number of models that use algebraic loop: %d\n ",models_use_algebraicloop{1}));
+            
+            
+            
             if(flag)
                 obj.WriteLog(sprintf("Most Frequently used blocks in Tutorial projects : \n %s ",most_15_freq_used_blks_tut));
                 obj.WriteLog(sprintf("Most Frequently used blocks in Source Forge projects : \n %s ",most_15_freq_used_blks_sourceforge));
@@ -1779,7 +1817,7 @@ classdef model_metric < handle
         end
         function original_study_mdl_name = list_of_model_name(obj)
             
-            loc = 'C-Corpus_Model_meta.csv'
+            loc = 'C-Corpus_Model_meta.csv';
             m = readtable(loc);
             data = table2cell(m);
             tutorial  = data(:,1);
@@ -1797,6 +1835,7 @@ classdef model_metric < handle
             other = other(~cellfun('isempty',other));
             other =  cellfun(@(x)string(strrep(x,"'","")),other);
             original_study_mdl_name_cell = [simple;advanced;other;tutorial];
+            %original_study_mdl_name_cell = [advanced;other;tutorial]
             [r,c] = size(original_study_mdl_name_cell);
             original_study_mdl_name = "";
             for k = 1:r-1
@@ -1834,6 +1873,85 @@ classdef model_metric < handle
             %}
         % to check the number of models from meta data to 
         end
+        
+        function res = reproduce_number_C_Corpus(obj,choice)
+                %{
+               reproduce the numbers int he C-corpus paper.  per table
+               This function can be be called from
+               grand_total_reproduce_numbers() to get a aggregated results. 
+            arguments: 
+                choice : a particular table name 
+            Example : 
+            obj.reproduce_number_C_Corpus('Github_metric')
+            
+                
+            %}
+            original_mdl_name = obj.list_of_model_name();
+            
+                  blk_connec_query = ['select sum(SLDiag_Block_count),sum(SCHK_block_count),sum(total_ConnH_cnt),sUm(C_corpus_blk_count),SUM(C_corpus_conn),SUM(C_corpus_conn+C_corpus_hidden_conn) as All_C from ', choice ,' where is_Lib = 0 and is_test = -1 '];
+                  total_hierarchial_model_query = ['select count(*) from ',choice, ' where is_Lib = 0 and is_test = -1  and C_corpus_hierar_depth>1'];
+                    
+                 blk_connec_query = strcat(blk_connec_query,' and substr(Model_Name,0,length(Model_name)-3) IN (',original_mdl_name,')');
+                 total_hierarchial_model_query = strcat(total_hierarchial_model_query,' and substr(Model_Name,0,length(Model_name)-3) IN (',original_mdl_name,')');
+              
+         obj.WriteLog(sprintf("Fetching Total hierarchial model of %s choice with query \n %s",choice,total_hierarchial_model_query));
+            total_hierarchial_model = fetch(obj.conn, total_hierarchial_model_query);
+            
+            obj.WriteLog(sprintf("Fetching Total counts of %s choice with query \n %s",choice,blk_connec_query));
+            blk_connec_cnt = fetch(obj.conn, blk_connec_query);
+            
+            res.sldiag = blk_connec_cnt{1};
+            res.slchk = blk_connec_cnt{2};
+            res.connec = blk_connec_cnt{3};
+            res.c_corpus_blk =  blk_connec_cnt{4};
+             res.c_corpus_conn =  blk_connec_cnt{5};
+            res.c_corpus_connH =  blk_connec_cnt{6};
+            
+
+            
+             res.total_hierar = total_hierarchial_model{1};
+             
+             fprintf("%d & %d & %d & %d \n",...
+                res.total_hierar,res.c_corpus_blk,res.c_corpus_conn, res.c_corpus_connH );
+            
+        end
+        function res = grand_total_reproduce_numbers(obj)
+            % concatenates the results of  different metrics of the different table. 
+            % 
+            % used to produce the results in the total column of the table
+             github = obj.reproduce_number_C_Corpus('Github_metric');
+            matc = obj.reproduce_number_C_Corpus('MATC_metric');
+   
+            fn = fieldnames(matc);
+
+                sourceforge = obj.reproduce_number_C_Corpus('sourceforge_metric');
+                tutorial  = obj.reproduce_number_C_Corpus('tutorial_metric');
+                others  = obj.reproduce_number_C_Corpus('others_metric');
+                
+                for i = 1 : length(fn)
+                    res.(fn{i}) = 0;
+                    if ismember(fn{i},fieldnames(github)) 
+                        res.(fn{i}) = github.(fn{i}) + res.(fn{i});
+                    end
+                    if ismember(fn{i},fieldnames(matc)) 
+                        res.(fn{i}) = res.(fn{i}) + matc.(fn{i})
+                    end
+                     if ismember(fn{i},fieldnames(sourceforge)) 
+                        res.(fn{i}) = res.(fn{i}) + sourceforge.(fn{i})
+                     end
+                     if ismember(fn{i},fieldnames(tutorial)) 
+                        res.(fn{i}) = res.(fn{i}) + tutorial.(fn{i})
+                     end
+                     if ismember(fn{i},fieldnames(others)) 
+                        res.(fn{i}) = res.(fn{i}) + others.(fn{i})
+                     end
+                end
+                fprintf("%d & %d & %d & %d \n",...
+                res.total_hierar,res.c_corpus_blk,res.c_corpus_conn, res.c_corpus_connH );
+            
+        end
+        
+       
         
     end
     
