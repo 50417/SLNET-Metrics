@@ -22,6 +22,13 @@ To get all the model metrics from all the table/sources combined
 	model_metric_obj.grand_total_analyze_metric(false)%For SLNET
 	model_metric_obj.grand_total_analyze_metric(true)%for C-corpus replication study.
 ````
+
+To get all the model metrics from C-corpus- custom tool from all the table/sources combined (Make sure to point to C-corpus-R.sqlite)
+````
+	model_metric_obj.reproduce_number_C_Corpus('<table-name>')(false)
+	model_metric_obj.grand_total_reproduce_numbers()%for C-corpus replication study.
+````
+
 To get all other findings.
 ````	
 	model_metric_obj.analyze_metrics(false)%for SLNET
@@ -30,4 +37,4 @@ To get all other findings.
 	
 [//]: # (These are reference links used in the body of this note and get stripped out when the markdown processor does its job. There is no need to format nicely because it shouldn't be seen. Thanks SO - http://stackoverflow.com/questions/4823468/store-comments-in-markdown-syntax)
 [paper]:http://ranger.uta.edu/~csallner/papers/Chowdhury18Curated.pdf
-[here]:https://zenodo.org/record/3912061#.Xvkq3HVKjRa
+[here]:https://zenodo.org/record/3936176#.XwZPj3VKiV4
