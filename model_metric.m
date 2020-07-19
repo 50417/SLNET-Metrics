@@ -17,13 +17,13 @@ classdef model_metric < handle
         map;%used by C-corpus custom tool
         
         conn;
-        colnames = {'FILE_ID','Model_Name','file_path','is_test','is_Lib','SCHK_Block_count','SLDiag_Block_count','C_corpus_blk_count','C_corpus_hidden_conn','C_corpus_conn','C_corpus_hierar_depth','SubSystem_count_Top',...
+        colnames = {'FILE_ID','Model_Name','file_path','is_test','is_Lib','SCHK_Block_count','SLDiag_Block_count','C_corpus_blk_count','C_corpus_hidden_conn','C_corpus_conn','C_corpus_hierar_depth','C_corpus_cyclo_metric','SubSystem_count_Top',...
             'Agg_SubSystem_count','Hierarchy_depth','LibraryLinked_Count',...,
             'compiles','CComplexity',...
             'Sim_time','Compile_time','Alge_loop_Cnt','target_hw','solver_type','sim_mode'...
             ,'total_ConnH_cnt','total_desc_cnt','ncs_cnt','scc_cnt','unique_sfun_count','sfun_nam_count'...
             ,'mdlref_nam_count','unique_mdl_ref_count'};
-        coltypes = {'INTEGER','VARCHAR','VARCHAR','Numeric','Boolean','NUMERIC','NUMERIC','NUMERIC','Numeric','NUMERIC','NUMERIC','Numeric','NUMERIC',...,
+        coltypes = {'INTEGER','VARCHAR','VARCHAR','Numeric','Boolean','NUMERIC','NUMERIC','NUMERIC','Numeric','NUMERIC','NUMERIC','Numeric','Numeric','NUMERIC',...,
             'NUMERIC','NUMERIC','Boolean','NUMERIC','NUMERIC','NUMERIC','NUMERIC','VARCHAR','VARCHAR','VARCHAR'...
             ,'NUMERIC','NUMERIC','NUMERIC','NUMERIC','NUMERIC','VARCHAR'...
             ,'VARCHAR','NUMERIC'};
@@ -142,14 +142,14 @@ classdef model_metric < handle
             exec(obj.conn,char(create_metric_table));
         end
         %Writes to database 
-        function output_bol = write_to_database(obj,id,simulink_model_name,file_path, isTest,isLib,schK_blk_count,block_count,c_corpus_blk_cnt,c_corpus_hidden_conn,c_corpus_conn,c_corpus_hierar,...
+        function output_bol = write_to_database(obj,id,simulink_model_name,file_path, isTest,isLib,schK_blk_count,block_count,c_corpus_blk_cnt,c_corpus_hidden_conn,c_corpus_conn,c_corpus_hierar,c_corpus_cyclo_metric,...
                                             subsys_count,agg_subsys_count,depth,linkedcount,compiles, cyclo,...
                                             sim_time,compile_time,num_alge_loop,target_hw,solver_type,sim_mode,...
                                             total_lines_cnt,total_descendant_count,ncs_count,scc_count,unique_sfun_count,...
                                             sfun_reused_key_val,...
                                             modelrefMap_reused_val,unique_mdl_ref_count)%block_count)
             insert(obj.conn,obj.table_name,obj.colnames, ...
-                {id,simulink_model_name,file_path,isTest,isLib,schK_blk_count,block_count,c_corpus_blk_cnt,c_corpus_hidden_conn,c_corpus_conn,c_corpus_hierar,subsys_count,...
+                {id,simulink_model_name,file_path,isTest,isLib,schK_blk_count,block_count,c_corpus_blk_cnt,c_corpus_hidden_conn,c_corpus_conn,c_corpus_hierar,c_corpus_cyclo_metric,subsys_count,...
                 agg_subsys_count,depth,linkedcount,compiles,cyclo,...
                 sim_time,compile_time,num_alge_loop,target_hw,solver_type,sim_mode...
                 ,total_lines_cnt,total_descendant_count,ncs_count,scc_count,unique_sfun_count,...
@@ -541,6 +541,7 @@ classdef model_metric < handle
                            end
                                
                                cyclo_complexity = -1; % If model compile fails. cant check cyclomatic complexity. Hence -1 
+                               c_corpus_cyclo_metric = -1; 
                                compiles = 0;
                                compile_time = -1;
                                num_alge_loop = -1;
@@ -618,6 +619,8 @@ classdef model_metric < handle
                                    try
                                        obj.WriteLog(['Calculating cyclomatic complexity of :' model_name]);
                                        cyclo_complexity = obj.extract_cyclomatic_complexity(model_name);
+                                       c_corpus_cyclo_metric = obj.extract_cyclomatic_complexity_C_corpus(model_name);
+                                       
                                        obj.WriteLog(sprintf("Cyclomatic Complexity : %d ",cyclo_complexity));
                                    catch ME
                                         obj.WriteLog(sprintf('ERROR Calculating Cyclomatic Complexity %s',model_name));                    
@@ -661,7 +664,7 @@ classdef model_metric < handle
                                obj.WriteLog(sprintf("Writing to Database"));
                                success = 0;
                                try
-                                    success = obj.write_to_database(id,char(m(end)),file_path,isTest,0,schk_blk_count,blk_cnt,c_corpus_blk_cnt,c_corpus_hidden_conn,c_corpus_conn,c_corpus_hierar,subsys_count,...
+                                    success = obj.write_to_database(id,char(m(end)),file_path,isTest,0,schk_blk_count,blk_cnt,c_corpus_blk_cnt,c_corpus_hidden_conn,c_corpus_conn,c_corpus_hierar,c_corpus_cyclo_metric,subsys_count,...
                                             agg_subsys_count,depth,liblink_count,compiles,cyclo_complexity...
                                             ,simulation_time,compile_time,num_alge_loop,target_hw,solver_type,sim_mode...
                                             ,total_lines_cnt,total_descendant_count,ncs_count,scc_count,unique_sfun_count...
@@ -1010,6 +1013,48 @@ classdef model_metric < handle
                 
        
         end
+        
+         function [c_corpus_cyclo_metric] = extract_cyclomatic_complexity_C_corpus(obj,model)
+                
+                metric_engine = slmetric.Engine();
+                %Simulink.BlockDiagram.expandSubsystem(block)
+                setAnalysisRoot(metric_engine, 'Root',  model);
+                metric_engine.AnalyzeModelReferences = 1;
+                metric_engine.AnalyzeLibraries = 1;
+                mData ={'mathworks.metrics.CyclomaticComplexity'};
+                try
+                    execute(metric_engine,mData);
+                catch
+                    obj.WriteLog("Error Executing Slmetric API");
+                end
+                res_col = getMetrics(metric_engine,mData,'AggregationDepth','all');
+                
+                c_corpus_cyclo_metric = -1 ; %-1 denotes cyclomatic complexit is not computed at all
+                for n=1:length(res_col)
+                    if res_col(n).Status == 0
+                        results = res_col(n).Results;
+
+                        for m=1:length(results)
+                            
+                            %disp(['MetricID: ',results(m).MetricID]);
+                            %disp(['  ComponentPath: ',results(m).ComponentPath]);
+                            %disp(['  Value: ',num2str(results(m).Value)]);
+                            if strcmp(results(m).ComponentPath,model)
+                                if strcmp(results(m).MetricID ,'mathworks.metrics.CyclomaticComplexity')
+                                    c_corpus_cyclo_metric =results(m).AggregatedValue;
+                                end
+                            end
+                        end
+                    else
+                        
+                        obj.WriteLog(['No results for:',res_col(n).MetricID]);
+                    end
+                    
+                end
+                
+       
+        end
+        
         
        %C-corpus recursive function to calculate metrics not supported by API
         function count = obtain_hierarchy_metrics_old(obj,sys,depth,isModelReference, is_second_time)
@@ -1543,12 +1588,13 @@ classdef model_metric < handle
           
             
          
-                    blk_connec_query = ['select sum(SLDiag_Block_count),sum(SCHK_block_count),sum(total_ConnH_cnt) from ', choice ,' where is_Lib = 0 and is_test = -1 '];
+                    blk_connec_query = ['select sum(C_corpus_blk_count),sum(SCHK_block_count),sum(total_ConnH_cnt),sum(C_corpus_conn),sum(C_corpus_hidden_conn) from ', choice ,' where is_Lib = 0 and is_test = -1 '];
                     solver_type_query = ['select solver_type,count(solver_type) from ', choice, ' where is_Lib = 0 and is_test = -1 group by solver_type'];
                     sim_mode_query = ['select sim_mode,count(sim_mode) from ',choice,' where is_Lib = 0 and is_test = -1 group by sim_mode'];
                     total_analyzedmdl_query = ['select count(*) from ', choice,' where is_Lib = 0  and is_test = -1 '];
                     total_model_compiles = ['select count(*) from ',choice,' where is_Lib = 0  and is_test = -1 and compiles = 1'];
                     total_hierarchial_model_query = ['select count(*) from ',choice, ' where is_Lib = 0 and is_test = -1  and Hierarchy_depth>1'];
+                    total_C_corpus_hierarchial_model_query = ['select count(*) from ',choice, ' where is_Lib = 0 and is_test = -1  and C_corpus_hierar_depth>1'];
                     
                     if original_flag
                         original_mdl_name = obj.list_of_model_name();
@@ -1565,6 +1611,7 @@ classdef model_metric < handle
                         
                         total_model_compiles = strcat(total_model_compiles,' and substr(Model_Name,0,length(Model_name)-3) IN (',original_mdl_name,')');
                         total_hierarchial_model_query = strcat(total_hierarchial_model_query,' and substr(Model_Name,0,length(Model_name)-3) IN (',original_mdl_name,')');
+                        total_C_corpus_hierarchial_model_query = strcat(total_C_corpus_hierarchial_model_query,' and substr(Model_Name,0,length(Model_name)-3) IN (',original_mdl_name,')');
                     end
                    
                     
@@ -1675,13 +1722,20 @@ classdef model_metric < handle
             
             res.total_hierar = total_hierarchial_model{1};
             
+            obj.WriteLog(sprintf("Fetching Total C-Corpus hierarchial model of %s choice with query \n %s",choice,total_C_corpus_hierarchial_model_query));
+            total_C_corpus_hierarchial_model = fetch(obj.conn, total_C_corpus_hierarchial_model_query);
+            
+            res.total_C_corpus_hierar = total_C_corpus_hierarchial_model{1};
+            
             obj.WriteLog(sprintf("Fetching Total counts of %s choice with query \n %s",choice,blk_connec_query));
             blk_connec_cnt = fetch(obj.conn, blk_connec_query);
             
-            res.sldiag = blk_connec_cnt{1};
+            res.C_corpus_blk_cnt = blk_connec_cnt{1};
             res.slchk = blk_connec_cnt{2};
             res.connec = blk_connec_cnt{3};
-            res.hconnec = total_hidden_conn{1} + res.connec;
+            res.C_corpus_connec =  blk_connec_cnt{4};
+            res.C_corpus_hconnec =  blk_connec_cnt{5};
+            res.hconnec = total_hidden_conn{1} ;
             
             obj.WriteLog(sprintf("Fetching solver type of %s choice with query \n %s",choice,solver_type_query));
             solver_type = fetch(obj.conn, solver_type_query);
@@ -1734,10 +1788,14 @@ classdef model_metric < handle
                 most_15_freq_used_blks = strcat(most_15_freq_used_blks,",",most_frequentlused_blocks{i});
             end
             res.most_freq_blks = most_15_freq_used_blks;
-           fprintf("%d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d\n",...
-               res.analyzedmdl,res.mdl_compiles,res.total_hierar,res.slchk,res.sldiag,res.connec,res.hconnec,res.fix,res.var,...
-               res.normal,res.ext,res.pil,res.acc,res.rpdacc)
-        
+           %fprintf("%d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d\n",...
+           %    res.analyzedmdl,res.mdl_compiles,res.total_hierar,res.slchk,res.C_corpus_blk_cnt,res.connec,res.hconnec,res.fix,res.var,...
+            %   res.normal,res.ext,res.pil,res.acc,res.rpdacc)
+            
+         
+              fprintf("\n%d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d ",...
+               res.analyzedmdl,res.mdl_compiles,res.total_hierar,res.total_C_corpus_hierar,res.slchk,res.C_corpus_blk_cnt,res.connec,res.C_corpus_connec,res.fix,res.var,...
+               res.normal,res.ext,res.pil,res.acc)
         end
              
         function res = grand_total_analyze_metric(obj,flag)
@@ -1796,9 +1854,14 @@ classdef model_metric < handle
                 end
         
             end
-                    fprintf("\n%d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d",...
-               res.analyzedmdl,res.mdl_compiles,res.total_hierar,res.slchk,res.sldiag,res.connec,res.hconnec,res.fix,res.var,...
-               res.normal,res.ext,res.pil,res.acc,res.rpdacc)
+              %      fprintf("\n%d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d",...
+              %% res.analyzedmdl,res.mdl_compiles,res.total_hierar,res.slchk,res.C_corpus_blk_cnt,res.connec,res.hconnec,res.fix,res.var,...
+              % res.normal,res.ext,res.pil,res.acc,res.rpdacc)
+              fprintf( "\nHIdden connection are %d % larger\n",cast(res.hconnec,'double')/cast(res.connec,'double') * 100 )
+            fprintf( "\nHIdden connection using C_corpus are %d % larger\n",cast(res.C_corpus_hconnec,'double')/cast(res.C_corpus_connec,'double') * 100)
+       fprintf("\n%d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d & %d ",...
+               res.analyzedmdl,res.mdl_compiles,res.total_hierar,res.total_C_corpus_hierar,res.slchk,res.C_corpus_blk_cnt,res.connec,res.C_corpus_connec,res.fix,res.var,...
+               res.normal,res.ext,res.pil,res.acc)
             %simple = obj.total_analyze_metric('Simple');
             %advanced = obj.total_analyze_metric('Advanced');
             %fn = fieldnames(simple);
@@ -1950,6 +2013,7 @@ classdef model_metric < handle
                 res.total_hierar,res.c_corpus_blk,res.c_corpus_conn, res.c_corpus_connH );
             
         end
+        
         
        
         
